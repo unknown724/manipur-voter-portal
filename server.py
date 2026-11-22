@@ -413,7 +413,10 @@ def search_voters(
 
     def execute_query_run(search_text: Optional[str]):
         params = []
-        if search_text:
+        is_deleted_search = bool(search_text and search_text.strip().lower() in ("deleted", "status:deleted"))
+        if is_deleted_search:
+            sql_base = "SELECT v.* FROM voters v WHERE (v.status = 'DELETED' OR v.name LIKE '%DELETED%')"
+        elif search_text:
             fts_query = build_fts_query(search_text)
             sql_base = """
             SELECT v.* 
@@ -444,14 +447,12 @@ def search_voters(
             cursor.execute(count_sql, params)
             total_cnt = cursor.fetchone()[0]
 
-            # Multi-tiered relevance ranking:
-            # Tier 1: Exact match on Elector's name
-            # Tier 2: Elector name starts with query
-            # Tier 3: Elector name contains query
-            # Tier 4: Exact match on Relative / Father name
-            # Tier 5: Relative / Father name contains query
-            # Tier 6: Everything else
-            if search_text:
+            if is_deleted_search:
+                sql_ordered = sql_base + " ORDER BY v.ac_no ASC, v.part_no ASC, v.id ASC LIMIT ? OFFSET ?"
+                query_params = list(params)
+                query_params.extend([limit, offset])
+                cursor.execute(sql_ordered, query_params)
+            elif search_text:
                 sql_ordered = sql_base + """
                 ORDER BY 
                   CASE 
@@ -479,8 +480,11 @@ def search_voters(
             like_params = []
             like_base = "SELECT v.* FROM voters v WHERE 1=1"
             if search_text:
-                like_base += " AND (v.name LIKE ? OR v.relative_name LIKE ? OR v.epic_no LIKE ? OR v.house_no LIKE ?)"
-                like_params.extend([f"%{search_text}%", f"%{search_text}%", f"%{search_text}%", f"%{search_text}%"])
+                if is_deleted_search:
+                    like_base += " AND (v.status = 'DELETED' OR v.name LIKE '%DELETED%')"
+                else:
+                    like_base += " AND (v.name LIKE ? OR v.relative_name LIKE ? OR v.epic_no LIKE ? OR v.house_no LIKE ?)"
+                    like_params.extend([f"%{search_text}%", f"%{search_text}%", f"%{search_text}%", f"%{search_text}%"])
             if ac_no:
                 like_base += " AND v.ac_no = ?"
                 like_params.append(ac_no)
