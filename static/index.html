@@ -29,32 +29,61 @@
         margin: 10mm;
       }
       html, body {
+        width: 100% !important;
         height: auto !important;
+        min-height: 0 !important;
         overflow: visible !important;
         background: #ffffff !important;
         margin: 0 !important;
         padding: 0 !important;
       }
-      /* Remove all background app UI entirely from print layout */
-      header, section, main, footer, nav, .modal-backdrop, #mapModal, #phoneQrModal, #acDetailModal, #rapidProgressModal, #view-search, #view-constituencies, #view-rapid, #view-upload, #voterResultsGrid, #constituenciesTable {
-        display: none !important;
+      /* Hide all elements by default */
+      body * {
+        visibility: hidden !important;
       }
-      body > div:not(#voterModal):not(#householdSlipModal) {
-        display: none !important;
+      /* Show ONLY the printable slip modal and its descendants */
+      #voterModal, #voterModal *,
+      #householdSlipModal, #householdSlipModal * {
+        visibility: visible !important;
+      }
+      #voterModal, #householdSlipModal {
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: transparent !important;
+        backdrop-filter: none !important;
+        display: block !important;
+        box-shadow: none !important;
+      }
+      #voterModal > div, #householdSlipModal > div {
+        max-width: 165mm !important;
+        width: 100% !important;
+        margin: 0 auto !important;
+        padding: 0 !important;
+        box-shadow: none !important;
+        border: none !important;
       }
       #printableSlip, #printableHouseholdSlip {
-        position: static !important;
+        visibility: visible !important;
         width: 100% !important;
+        max-width: 165mm !important;
         border: 2px solid #0f172a !important;
         border-radius: 8px !important;
-        background: white !important;
+        background: #ffffff !important;
         page-break-inside: avoid !important;
         break-inside: avoid !important;
+        page-break-after: avoid !important;
+        break-after: avoid !important;
         padding: 16px !important;
+        margin: 0 auto !important;
         box-shadow: none !important;
       }
       button, a, .no-print, [onclick] {
         display: none !important;
+        visibility: hidden !important;
       }
     }
     /* Pedigree Tree Visual Styles (Matching Image) */
@@ -3040,10 +3069,11 @@
         '  <title>' + (title || 'ECI Official Voter Slip') + '</title>',
         '  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">',
         '  <style>',
-        '    @page { size: A4 portrait; margin: 10mm; }',
-        '    body { margin: 0; padding: 0; background: #fff !important; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }',
+        '    @page { size: A4 portrait; margin: 15mm; }',
+        '    html, body { width: 100%; height: auto; min-height: 0; margin: 0; padding: 0; background: #fff !important; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }',
         '    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; box-sizing: border-box; }',
-        '    .printable-content { max-width: 100% !important; margin: 0 auto !important; page-break-inside: avoid !important; }',
+        '    .printable-content { width: 100%; max-width: 165mm; margin: 0 auto; page-break-inside: avoid !important; break-inside: avoid !important; page-break-after: avoid !important; break-after: avoid !important; }',
+        '    button, [onclick] { display: none !important; }',
         '  </style>',
         '</head>',
         '<body>',
@@ -3160,13 +3190,17 @@
       const hiddenBranches = canvasEl.querySelectorAll('.pedigree-branch-collapsible.hidden');
       hiddenBranches.forEach(b => b.classList.remove('hidden'));
 
-      // Save original styles
+      // Save original styles and scroll positions
       const origTransform = canvasEl.style.transform;
       const origContainerMaxHeight = containerEl.style.maxHeight;
       const origContainerOverflow = containerEl.style.overflow;
       const origContainerHeight = containerEl.style.height;
+      const origScrollLeft = containerEl.scrollLeft;
+      const origScrollTop = containerEl.scrollTop;
 
-      // Unconstrain container and reset canvas transform to 1:1 scale
+      // Scroll container to top-left so nothing is cropped by viewport offset
+      containerEl.scrollLeft = 0;
+      containerEl.scrollTop = 0;
       canvasEl.style.transform = 'scale(1)';
       containerEl.style.maxHeight = 'none';
       containerEl.style.overflow = 'visible';
@@ -3178,10 +3212,10 @@
         }
 
         // Wait a brief tick for DOM and layout reflow
-        await new Promise(r => setTimeout(r, 120));
+        await new Promise(r => setTimeout(r, 150));
 
-        const fullWidth = Math.max(canvasEl.scrollWidth, canvasEl.offsetWidth, 1200);
-        const fullHeight = Math.max(canvasEl.scrollHeight, canvasEl.offsetHeight, 600);
+        const fullWidth = Math.max(canvasEl.scrollWidth, canvasEl.offsetWidth, 1200) + 60;
+        const fullHeight = Math.max(canvasEl.scrollHeight, canvasEl.offsetHeight, 600) + 60;
 
         const rendered = await html2canvas(canvasEl, {
           scale: 2,
@@ -3212,6 +3246,8 @@
         containerEl.style.maxHeight = origContainerMaxHeight;
         containerEl.style.overflow = origContainerOverflow;
         containerEl.style.height = origContainerHeight;
+        containerEl.scrollLeft = origScrollLeft;
+        containerEl.scrollTop = origScrollTop;
         hiddenBranches.forEach(b => b.classList.add('hidden'));
 
         if (btn) btn.innerHTML = origHtml;
