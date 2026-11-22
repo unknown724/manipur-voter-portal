@@ -2241,15 +2241,24 @@
     function openDirectMapModalGoogleMaps(event) {
       if (event) event.preventDefault();
       const ps = currentMapData?.polling_station;
-      const bLabel = encodeURIComponent(ps?.building_name || ps?.name || 'Designated Polling Station');
+      const h = currentMapData?.household;
+      const lat = ps?.latitude || h?.latitude;
+      const lng = ps?.longitude || h?.longitude;
+      const bLabel = encodeURIComponent(ps?.building_name || ps?.name || h?.polling_station_name || 'Designated Polling Station');
+
       if (ps && ps.google_maps_coord_url) {
         window.open(ps.google_maps_coord_url, '_blank', 'noopener,noreferrer');
+      } else if (lat && lng) {
+        window.open(`https://www.google.com/maps?q=loc:${lat},${lng}+(${bLabel})`, '_blank', 'noopener,noreferrer');
       } else if (ps && ps.google_maps_url) {
         window.open(ps.google_maps_url, '_blank', 'noopener,noreferrer');
-      } else if (ps && ps.latitude) {
-        window.open(`https://www.google.com/maps?q=loc:${ps.latitude},${ps.longitude}+(${bLabel})`, '_blank', 'noopener,noreferrer');
       } else {
-        window.open('https://www.google.com/maps', '_blank', 'noopener,noreferrer');
+        const v = state.currentResults ? state.currentResults.find(x => x.id === currentMapVoterId) : null;
+        if (v && v.polling_station_name) {
+          window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(v.polling_station_name + ', Manipur')}`, '_blank', 'noopener,noreferrer');
+        } else {
+          window.open('https://www.google.com/maps', '_blank', 'noopener,noreferrer');
+        }
       }
     }
 
@@ -3347,24 +3356,33 @@
       if (v) {
         document.getElementById('map-ac-badge').innerText = `AC #${v.ac_no || '--'} • Part #${v.part_no || '--'}`;
         document.getElementById('map-house-text').innerText = v.house_no ? `House #${v.house_no}` : "House #--";
-        document.getElementById('map-booth-title').innerText = v.polling_station_name || "Official Designated Polling Station";
-        document.getElementById('map-section-desc').innerText = `Designated Polling Station #${v.part_no || '--'} • AC #${v.ac_no || '--'} ${v.ac_name ? '(' + v.ac_name + ')' : ''} • 100% Verified Location`;
+        const titleEl = document.getElementById('map-booth-title');
+        if (titleEl) titleEl.innerText = v.polling_station_name || "Official Designated Polling Station";
+        const descEl = document.getElementById('map-section-desc');
+        if (descEl) descEl.innerText = `Designated Polling Station #${v.part_no || '--'} • AC #${v.ac_no || '--'} ${v.ac_name ? '(' + v.ac_name + ')' : ''} • 100% Verified Location`;
       } else {
-        document.getElementById('map-ac-badge').innerText = "Loading...";
-        document.getElementById('map-house-text').innerText = "House #--";
-        document.getElementById('map-booth-title').innerText = "Official Designated Polling Station";
-        document.getElementById('map-section-desc').innerText = "Retrieving verified polling station coordinates and location...";
+        const acBadge = document.getElementById('map-ac-badge');
+        if (acBadge) acBadge.innerText = "Loading...";
+        const houseText = document.getElementById('map-house-text');
+        if (houseText) houseText.innerText = "House #--";
+        const titleEl = document.getElementById('map-booth-title');
+        if (titleEl) titleEl.innerText = "Official Designated Polling Station";
+        const descEl = document.getElementById('map-section-desc');
+        if (descEl) descEl.innerText = "Retrieving verified polling station coordinates and location...";
       }
-      document.getElementById('map-head-name').innerText = "Loading...";
-      document.getElementById('map-family-total').innerText = "--";
-      document.getElementById('map-members-pill').innerText = "--";
-      document.getElementById('map-coords-pill').innerText = "Locating GPS...";
-      document.getElementById('map-family-members-grid').innerHTML = `
-        <div class="col-span-full py-6 text-center text-slate-400 text-xs flex items-center justify-center gap-2">
-          <i data-lucide="loader" class="w-4 h-4 animate-spin text-blue-600"></i>
-          <span>Retrieving verified polling station coordinates and family electors...</span>
-        </div>
-      `;
+      const memPill = document.getElementById('map-members-pill');
+      if (memPill) memPill.innerText = "--";
+      const coordsPill = document.getElementById('map-coords-pill');
+      if (coordsPill) coordsPill.innerText = "Locating GPS...";
+      const famGrid = document.getElementById('map-family-members-grid');
+      if (famGrid) {
+        famGrid.innerHTML = `
+          <div class="col-span-full py-6 text-center text-slate-400 text-xs flex items-center justify-center gap-2">
+            <i data-lucide="loader" class="w-4 h-4 animate-spin text-blue-600"></i>
+            <span>Retrieving verified polling station coordinates and family electors...</span>
+          </div>
+        `;
+      }
       lucide.createIcons();
 
       try {
@@ -3377,21 +3395,25 @@
         const h = data.household;
         const ps = data.polling_station || {};
         const head = data.head_of_household || {};
-        document.getElementById('map-ac-badge').innerText = `AC #${h.ac_no} (${h.ac_name}) • Part #${ps.part_no || h.part_no}`;
-        document.getElementById('map-house-text').innerText = `House #${h.house_no || 'N/A'}`;
-        document.getElementById('map-booth-title').innerText = `${ps.building_name || ps.name || h.polling_station_name}`;
-        document.getElementById('map-section-desc').innerText = `Designated Booth #${ps.part_no || h.part_no} • Locality: ${ps.locality || h.section_name} • ECI Part: ${ps.name || h.polling_station_name}`;
+        const acBadge = document.getElementById('map-ac-badge');
+        if (acBadge) acBadge.innerText = `AC #${h.ac_no} (${h.ac_name}) • Part #${ps.part_no || h.part_no}`;
+        const houseText = document.getElementById('map-house-text');
+        if (houseText) houseText.innerText = `House #${h.house_no || 'N/A'}`;
+        const titleEl = document.getElementById('map-booth-title');
+        if (titleEl) titleEl.innerText = `${ps.building_name || ps.name || h.polling_station_name}`;
+        const descEl = document.getElementById('map-section-desc');
+        if (descEl) descEl.innerText = `Designated Booth #${ps.part_no || h.part_no} • Locality: ${ps.locality || h.section_name} • ECI Part: ${ps.name || h.polling_station_name}`;
 
         const boothBuildingEl = document.getElementById('map-booth-building-name');
         if (boothBuildingEl) boothBuildingEl.innerText = ps.building_name || ps.name || 'Polling Station';
-        document.getElementById('map-head-name').innerText = `${head.name || 'N/A'} (${head.age || '--'}y, ${head.gender || '--'})`;
-        document.getElementById('map-family-total').innerText = data.family.total_count;
-        document.getElementById('map-members-pill').innerText = `${data.family.total_count} Electors`;
+        const memPillUpdated = document.getElementById('map-members-pill');
+        if (memPillUpdated) memPillUpdated.innerText = `${data.family.total_count} Electors`;
 
         const latVal = ps.latitude || h.latitude;
         const lngVal = ps.longitude || h.longitude;
         const coordsStr = `${latVal.toFixed(5)}° N, ${lngVal.toFixed(5)}° E`;
-        document.getElementById('map-coords-pill').innerText = coordsStr;
+        const coordsPillUpdated = document.getElementById('map-coords-pill');
+        if (coordsPillUpdated) coordsPillUpdated.innerText = coordsStr;
 
         // Google Maps Links
         const gmapsLink = ps.google_maps_url || h.google_maps_url || `https://www.google.com/maps/search/?api=1&query=${latVal},${lngVal}`;
@@ -3509,6 +3531,9 @@
           `).openPopup();
 
           leafletMapInstance.setView(boothCoords, 16);
+          setTimeout(() => {
+            if (leafletMapInstance) leafletMapInstance.invalidateSize();
+          }, 200);
         }, 150);
 
       } catch (err) {
