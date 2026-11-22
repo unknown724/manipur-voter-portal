@@ -1971,11 +1971,12 @@
         lucide.createIcons();
       }
     }
-    document.addEventListener("DOMContentLoaded", async () => {
+    document.addEventListener("DOMContentLoaded", () => {
       initTheme();
       lucide.createIcons();
-      await fetchStats();
-      await fetchConstituencies();
+      // Concurrent non-blocking parallel initialization: search loads instantly!
+      fetchStats();
+      fetchConstituencies();
       executeSearch(1);
     });
 
