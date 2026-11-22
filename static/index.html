@@ -370,32 +370,19 @@
 
         <!-- Navigation Tabs & Theme Toggle -->
         <div class="flex items-center gap-1.5 sm:gap-3 min-w-0">
-          <nav class="flex space-x-1 sm:space-x-2 overflow-x-auto no-scrollbar py-1">
+          <nav class="hidden sm:flex space-x-1 sm:space-x-2 overflow-x-auto no-scrollbar py-1">
             <button onclick="switchTab('search')" id="tabBtn-search" class="nav-tab px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition flex items-center gap-1 sm:gap-1.5 bg-white/20 text-white shrink-0">
               <i data-lucide="search" class="w-3.5 h-3.5 sm:w-4 sm:h-4"></i>
-              <span class="hidden sm:inline">Search Voters</span>
-              <span class="sm:hidden">Search</span>
+              <span>Search Voters</span>
             </button>
             <button onclick="handleNeristTabClick()" id="tabBtn-nerist" class="nav-tab px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition flex items-center gap-1 sm:gap-1.5 text-cyan-200 bg-cyan-950/60 hover:bg-cyan-900/70 border border-cyan-400/40 shrink-0 shadow-xs cursor-pointer" title="Protected NERISTian Directory (Passkey Required)">
               <i data-lucide="lock" class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-cyan-300"></i>
-              <span class="hidden sm:inline">NERISTians</span>
-              <span class="sm:hidden">NERIST</span>
+              <span>NERISTians</span>
               <span class="text-[10px] bg-cyan-400/30 text-cyan-200 border border-cyan-400/50 font-bold px-1.5 py-0.2 rounded-full">Locked</span>
             </button>
             <button onclick="switchTab('constituencies')" id="tabBtn-constituencies" class="nav-tab px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition flex items-center gap-1 sm:gap-1.5 text-emerald-100 hover:bg-white/10 shrink-0">
               <i data-lucide="landmark" class="w-3.5 h-3.5 sm:w-4 sm:h-4"></i>
-              <span class="hidden sm:inline">Constituencies (60)</span>
-              <span class="sm:hidden">ACs</span>
-            </button>
-            <button onclick="switchTab('rapid')" id="tabBtn-rapid" class="nav-tab px-2 sm:px-2.5 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition flex items-center gap-1 sm:gap-1.5 text-amber-200 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-300/30 shrink-0">
-              <i data-lucide="zap" class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-300"></i>
-              <span class="hidden sm:inline">Rapid</span>
-              <span class="sm:hidden">Rapid</span>
-            </button>
-            <button onclick="switchTab('upload')" id="tabBtn-upload" class="nav-tab px-2 sm:px-2.5 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition flex items-center gap-1 sm:gap-1.5 text-emerald-100 hover:bg-white/10 shrink-0">
-              <i data-lucide="file-up" class="w-3.5 h-3.5 sm:w-4 sm:h-4"></i>
-              <span class="hidden sm:inline">Import</span>
-              <span class="sm:hidden">Import</span>
+              <span>Constituencies (60)</span>
             </button>
           </nav>
 
@@ -465,12 +452,13 @@
               <label class="block text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase">Search Name, Relative, or EPIC No</label>
               <span class="text-[10px] text-slate-400 font-mono hidden sm:inline">Press <kbd class="px-1 py-0.5 bg-slate-100 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded text-[9px]">Ctrl+K</kbd> or <kbd class="px-1 py-0.5 bg-slate-100 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded text-[9px]">/</kbd></span>
             </div>
-            <div class="relative beam-search-wrapper">
+            <form action="javascript:void(0);" onsubmit="handleMobileSearchSubmit(event)" class="relative beam-search-wrapper">
               <div class="beam-container relative flex items-center rounded-xl border border-slate-300 dark:border-zinc-700/80 bg-slate-50 dark:bg-zinc-950 transition-all duration-200 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20 focus-within:bg-white dark:focus-within:bg-zinc-950">
                 <i data-lucide="search" class="w-4 h-4 text-slate-400 dark:text-zinc-500 absolute left-3.5 pointer-events-none"></i>
-                <input type="text" id="searchQuery" placeholder="Search elector name, relative, or EPIC (e.g. Konsam, DKG0...)"
+                <input type="search" id="searchQuery" placeholder="Search elector name, relative, or EPIC (e.g. Konsam, DKG0...)"
                        class="w-full pl-10 pr-10 py-2.5 bg-transparent text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-zinc-500 text-base sm:text-sm focus:outline-none"
                        autocomplete="off"
+                       enterkeyhint="search"
                        onfocus="handleSearchFocus()"
                        oninput="handleSearchQueryInput(this.value)"
                        onkeydown="handleSearchQueryKeyDown(event)">
@@ -491,7 +479,7 @@
               <div id="recentSearchesBox" 
                    class="hidden absolute left-0 right-0 top-full mt-1.5 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl shadow-2xl z-40 overflow-hidden p-2">
               </div>
-            </div>
+            </form>
           </div>
 
           <!-- Constituency Filter -->
@@ -768,22 +756,22 @@
 
         <!-- Live Statistics Counter Grid -->
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 text-center">
-          <div class="p-3 rounded-xl bg-slate-50 dark:bg-zinc-850/60 border border-slate-200 dark:border-zinc-800">
+          <div class="p-3 rounded-xl bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800">
             <p class="text-[11px] font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider">Total Manipur Cohort</p>
             <p id="stat-nerist-total" class="text-xl font-bold text-slate-800 dark:text-slate-100">312</p>
             <span class="text-[10px] text-slate-400 dark:text-zinc-500">NERIST Candidates</span>
           </div>
-          <div class="p-3 rounded-xl bg-slate-50 dark:bg-zinc-850/60 border border-slate-200 dark:border-zinc-800">
+          <div class="p-3 rounded-xl bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800">
             <p class="text-[11px] font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider">Verified Linked</p>
             <p id="stat-nerist-linked" class="text-xl font-bold text-emerald-600 dark:text-emerald-400">308</p>
             <span class="text-[10px] text-emerald-600/80 dark:text-emerald-400/80 font-medium">98.7% Linked</span>
           </div>
-          <div class="p-3 rounded-xl bg-slate-50 dark:bg-zinc-850/60 border border-slate-200 dark:border-zinc-800">
+          <div class="p-3 rounded-xl bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800">
             <p class="text-[11px] font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider">Household Triangulated</p>
             <p id="stat-nerist-triangulated" class="text-xl font-bold text-cyan-600 dark:text-cyan-400">36</p>
             <span class="text-[10px] text-slate-400 dark:text-zinc-500">Student + Parents at Same House</span>
           </div>
-          <div class="p-3 rounded-xl bg-slate-50 dark:bg-zinc-850/60 border border-slate-200 dark:border-zinc-800">
+          <div class="p-3 rounded-xl bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800">
             <p class="text-[11px] font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider">Discrepancy Taxonomy</p>
             <p id="stat-nerist-unmatched" class="text-xl font-bold text-amber-600 dark:text-amber-400">4</p>
             <span class="text-[10px] text-slate-400 dark:text-zinc-500">Underage / Out-of-State</span>
@@ -1242,8 +1230,8 @@
       <div id="ft-grid-view" class="space-y-4 hidden">
         <!-- 1. Grandparents -->
         <div id="ft-grandparents-section" class="space-y-2 hidden">
-          <div class="flex items-center gap-2 border-b border-amber-100 pb-1">
-            <span class="text-xs font-bold text-amber-900 uppercase tracking-wider flex items-center gap-1">
+          <div class="flex items-center gap-2 border-b border-amber-100 dark:border-amber-900/50 pb-1">
+            <span class="text-xs font-bold text-amber-900 dark:text-amber-300 uppercase tracking-wider flex items-center gap-1">
               <span>🧓 Grandparents & Patriarchs (Generation 1)</span>
             </span>
           </div>
@@ -1252,8 +1240,8 @@
 
         <!-- 2. Parents -->
         <div id="ft-parents-section" class="space-y-2 hidden">
-          <div class="flex items-center gap-2 border-b border-blue-100 pb-1">
-            <span class="text-xs font-bold text-blue-900 uppercase tracking-wider flex items-center gap-1">
+          <div class="flex items-center gap-2 border-b border-blue-100 dark:border-blue-900/50 pb-1">
+            <span class="text-xs font-bold text-blue-900 dark:text-blue-300 uppercase tracking-wider flex items-center gap-1">
               <span>👨‍👩‍👧 Parents (Generation 2)</span>
             </span>
           </div>
@@ -1262,8 +1250,8 @@
 
         <!-- 3. Paternal Uncles & Aunts -->
         <div id="ft-uncles-section" class="space-y-2 hidden">
-          <div class="flex items-center gap-2 border-b border-indigo-100 pb-1">
-            <span class="text-xs font-bold text-indigo-900 uppercase tracking-wider flex items-center gap-1">
+          <div class="flex items-center gap-2 border-b border-indigo-100 dark:border-indigo-900/50 pb-1">
+            <span class="text-xs font-bold text-indigo-900 dark:text-indigo-300 uppercase tracking-wider flex items-center gap-1">
               <span>🏡 Paternal Uncles & Aunts (Adjacent Homesteads)</span>
             </span>
           </div>
@@ -1272,8 +1260,8 @@
 
         <!-- 4. Spouses -->
         <div id="ft-spouses-section" class="space-y-2 hidden">
-          <div class="flex items-center gap-2 border-b border-pink-100 pb-1">
-            <span class="text-xs font-bold text-pink-900 uppercase tracking-wider flex items-center gap-1">
+          <div class="flex items-center gap-2 border-b border-pink-100 dark:border-pink-900/50 pb-1">
+            <span class="text-xs font-bold text-pink-900 dark:text-pink-300 uppercase tracking-wider flex items-center gap-1">
               <span>💍 Spouse</span>
             </span>
           </div>
@@ -1282,8 +1270,8 @@
 
         <!-- 5. Target & Siblings -->
         <div id="ft-siblings-section" class="space-y-2 hidden">
-          <div class="flex items-center gap-2 border-b border-purple-100 pb-1">
-            <span class="text-xs font-bold text-purple-900 uppercase tracking-wider flex items-center gap-1">
+          <div class="flex items-center gap-2 border-b border-purple-100 dark:border-purple-900/50 pb-1">
+            <span class="text-xs font-bold text-purple-900 dark:text-purple-300 uppercase tracking-wider flex items-center gap-1">
               <span>👫 Target Elector & Siblings (Generation 3)</span>
             </span>
           </div>
@@ -1292,8 +1280,8 @@
 
         <!-- 6. Cousins -->
         <div id="ft-cousins-section" class="space-y-2 hidden">
-          <div class="flex items-center gap-2 border-b border-teal-100 pb-1">
-            <span class="text-xs font-bold text-teal-900 uppercase tracking-wider flex items-center gap-1">
+          <div class="flex items-center gap-2 border-b border-teal-100 dark:border-teal-900/50 pb-1">
+            <span class="text-xs font-bold text-teal-900 dark:text-teal-300 uppercase tracking-wider flex items-center gap-1">
               <span>🤝 Cousin Sisters & Cousin Brothers (Extended Lineage)</span>
             </span>
           </div>
@@ -1302,8 +1290,8 @@
 
         <!-- 7. Children -->
         <div id="ft-children-section" class="space-y-2 hidden">
-          <div class="flex items-center gap-2 border-b border-emerald-100 pb-1">
-            <span class="text-xs font-bold text-emerald-900 uppercase tracking-wider flex items-center gap-1">
+          <div class="flex items-center gap-2 border-b border-emerald-100 dark:border-emerald-900/50 pb-1">
+            <span class="text-xs font-bold text-emerald-900 dark:text-emerald-300 uppercase tracking-wider flex items-center gap-1">
               <span>👶 Children (Generation 4)</span>
             </span>
           </div>
@@ -1312,8 +1300,8 @@
 
         <!-- 8. Nephews & Nieces -->
         <div id="ft-nephews-section" class="space-y-2 hidden">
-          <div class="flex items-center gap-2 border-b border-indigo-100 pb-1">
-            <span class="text-xs font-bold text-indigo-900 uppercase tracking-wider flex items-center gap-1">
+          <div class="flex items-center gap-2 border-b border-indigo-100 dark:border-indigo-900/50 pb-1">
+            <span class="text-xs font-bold text-indigo-900 dark:text-indigo-300 uppercase tracking-wider flex items-center gap-1">
               <span>👶 Nephews & Nieces (Brother's & Sister's Children)</span>
             </span>
           </div>
@@ -1322,10 +1310,10 @@
       </div>
 
       <!-- Modal Footer -->
-      <div class="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-200">
-        <span class="text-xs text-slate-500 hidden sm:inline">Tip: Click any avatar circle to view official roll slip, or focus the lineage tree on that relative.</span>
+      <div class="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-200 dark:border-zinc-800">
+        <span class="text-xs text-slate-500 dark:text-zinc-400 hidden sm:inline">Tip: Click any avatar circle to view official roll slip, or focus the lineage tree on that relative.</span>
         <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
-          <button onclick="shareHouseholdSlip()" class="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-xl text-xs font-semibold flex items-center gap-1 transition border border-emerald-200">
+          <button onclick="shareHouseholdSlip()" class="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 rounded-xl text-xs font-semibold flex items-center gap-1 transition border border-emerald-200 dark:border-emerald-800">
             <i data-lucide="share-2" class="w-3.5 h-3.5"></i>
             <span>Share Family Slip</span>
           </button>
@@ -1637,7 +1625,7 @@
   <footer class="bg-white dark:bg-zinc-950 border-t border-slate-200 dark:border-zinc-800 py-8 mb-16 sm:mb-0 transition-colors">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
       
-      <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-6 border-b border-slate-100 dark:border-zinc-850">
+      <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-6 border-b border-slate-100 dark:border-zinc-800">
         <!-- Identity & Attribution -->
         <div class="space-y-1 max-w-xl">
           <div class="flex items-center gap-2 flex-wrap">
@@ -1703,26 +1691,18 @@
   </footer>
 
   <!-- MOBILE BOTTOM NAVIGATION BAR (Fixed at bottom for smartphones) -->
-  <nav class="fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md border-t border-slate-200 dark:border-zinc-800 py-1.5 px-3 flex sm:hidden items-center justify-around shadow-2xl transition-colors">
-    <button onclick="switchTab('search')" id="mobTab-search" class="flex flex-col items-center gap-0.5 text-emerald-700 dark:text-emerald-400 font-semibold text-[11px] transition">
-      <div class="p-1 rounded-xl bg-emerald-100/70 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300"><i data-lucide="search" class="w-5 h-5"></i></div>
+  <nav class="fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md border-t border-slate-200 dark:border-zinc-800 py-2 px-6 flex sm:hidden items-center justify-around shadow-2xl transition-colors">
+    <button onclick="switchTab('search')" id="mobTab-search" class="flex flex-col items-center gap-1 text-emerald-700 dark:text-emerald-400 font-semibold text-xs transition cursor-pointer">
+      <div class="p-1.5 rounded-xl bg-emerald-100/70 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300"><i data-lucide="search" class="w-5 h-5"></i></div>
       <span>Search</span>
     </button>
-    <button onclick="handleNeristTabClick()" id="mobTab-nerist" class="flex flex-col items-center gap-0.5 text-slate-500 dark:text-zinc-400 font-medium text-[11px] transition">
-      <div class="p-1 rounded-xl"><i data-lucide="lock" class="w-5 h-5 text-cyan-500"></i></div>
-      <span>NERIST</span>
+    <button onclick="handleNeristTabClick()" id="mobTab-nerist" class="flex flex-col items-center gap-1 text-slate-500 dark:text-zinc-400 font-medium text-xs transition cursor-pointer">
+      <div class="p-1.5 rounded-xl"><i data-lucide="lock" class="w-5 h-5 text-cyan-500"></i></div>
+      <span>NERISTians</span>
     </button>
-    <button onclick="switchTab('constituencies')" id="mobTab-constituencies" class="flex flex-col items-center gap-0.5 text-slate-500 dark:text-zinc-400 font-medium text-[11px] transition">
-      <div class="p-1 rounded-xl"><i data-lucide="landmark" class="w-5 h-5"></i></div>
+    <button onclick="switchTab('constituencies')" id="mobTab-constituencies" class="flex flex-col items-center gap-1 text-slate-500 dark:text-zinc-400 font-medium text-xs transition cursor-pointer">
+      <div class="p-1.5 rounded-xl"><i data-lucide="landmark" class="w-5 h-5"></i></div>
       <span>ACs (60)</span>
-    </button>
-    <button onclick="switchTab('rapid')" id="mobTab-rapid" class="flex flex-col items-center gap-0.5 text-slate-500 dark:text-zinc-400 font-medium text-[11px] transition">
-      <div class="p-1 rounded-xl"><i data-lucide="zap" class="w-5 h-5 text-amber-500"></i></div>
-      <span>Rapid</span>
-    </button>
-    <button onclick="switchTab('upload')" id="mobTab-upload" class="flex flex-col items-center gap-0.5 text-slate-500 dark:text-zinc-400 font-medium text-[11px] transition">
-      <div class="p-1 rounded-xl"><i data-lucide="file-up" class="w-5 h-5"></i></div>
-      <span>Import</span>
     </button>
   </nav>
 
@@ -1774,18 +1754,18 @@
         return;
       }
       box.innerHTML = `
-        <div class="flex items-center justify-between px-3 py-1.5 text-xs text-slate-400 font-semibold border-b border-slate-100">
-          <span class="flex items-center gap-1.5"><i data-lucide="history" class="w-3.5 h-3.5 text-slate-400"></i> Recent Searches</span>
-          <button onclick="clearRecentSearches()" class="text-[10px] text-rose-600 hover:underline">Clear History</button>
+        <div class="flex items-center justify-between px-3 py-1.5 text-xs text-slate-400 dark:text-zinc-400 font-semibold border-b border-slate-100 dark:border-zinc-800">
+          <span class="flex items-center gap-1.5"><i data-lucide="history" class="w-3.5 h-3.5 text-slate-400 dark:text-zinc-400"></i> Recent Searches</span>
+          <button onclick="clearRecentSearches()" class="text-[10px] text-rose-600 dark:text-rose-400 hover:underline">Clear History</button>
         </div>
         <div class="py-1">
           ${list.map(term => `
-            <div onclick="selectRecentSearch('${term.replace(/'/g, "\\'")}')" class="px-3 py-2 text-xs text-slate-700 hover:bg-slate-50 cursor-pointer flex items-center justify-between rounded-lg transition">
+            <div onclick="selectRecentSearch('${term.replace(/'/g, "\\'")}')" class="px-3 py-2 text-xs text-slate-700 dark:text-zinc-200 hover:bg-slate-50 dark:hover:bg-zinc-800 cursor-pointer flex items-center justify-between rounded-lg transition">
               <div class="flex items-center gap-2">
-                <i data-lucide="clock" class="w-3.5 h-3.5 text-slate-400"></i>
+                <i data-lucide="clock" class="w-3.5 h-3.5 text-slate-400 dark:text-zinc-400"></i>
                 <span class="font-medium">${term}</span>
               </div>
-              <i data-lucide="arrow-up-right" class="w-3 h-3 text-slate-400"></i>
+              <i data-lucide="arrow-up-right" class="w-3 h-3 text-slate-400 dark:text-zinc-400"></i>
             </div>
           `).join('')}
         </div>
@@ -2117,18 +2097,18 @@
       
       // Prev button
       if (curr > 1) {
-        html += `<button onclick="executeSearch(${curr - 1})" class="px-2.5 py-1 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition shadow-sm flex items-center gap-1"><i data-lucide="chevron-left" class="w-3.5 h-3.5"></i> Prev</button>`;
+        html += `<button onclick="executeSearch(${curr - 1})" class="px-2.5 py-1 text-xs font-medium text-slate-700 dark:text-zinc-200 bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded-lg hover:bg-slate-50 dark:hover:bg-zinc-700 transition shadow-sm flex items-center gap-1 cursor-pointer"><i data-lucide="chevron-left" class="w-3.5 h-3.5"></i> Prev</button>`;
       } else {
-        html += `<button disabled class="px-2.5 py-1 text-xs font-medium text-slate-300 bg-slate-50 border border-slate-200 rounded-lg cursor-not-allowed flex items-center gap-1"><i data-lucide="chevron-left" class="w-3.5 h-3.5"></i> Prev</button>`;
+        html += `<button disabled class="px-2.5 py-1 text-xs font-medium text-slate-300 dark:text-zinc-600 bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg cursor-not-allowed flex items-center gap-1"><i data-lucide="chevron-left" class="w-3.5 h-3.5"></i> Prev</button>`;
       }
 
-      html += `<span class="text-xs text-slate-600 font-semibold px-2">Page ${curr} of ${total}</span>`;
+      html += `<span class="text-xs text-slate-600 dark:text-zinc-400 font-semibold px-2">Page ${curr} of ${total}</span>`;
 
       // Next button
       if (curr < total) {
-        html += `<button onclick="executeSearch(${curr + 1})" class="px-2.5 py-1 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition shadow-sm flex items-center gap-1">Next <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i></button>`;
+        html += `<button onclick="executeSearch(${curr + 1})" class="px-2.5 py-1 text-xs font-medium text-slate-700 dark:text-zinc-200 bg-white dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded-lg hover:bg-slate-50 dark:hover:bg-zinc-700 transition shadow-sm flex items-center gap-1 cursor-pointer">Next <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i></button>`;
       } else {
-        html += `<button disabled class="px-2.5 py-1 text-xs font-medium text-slate-300 bg-slate-50 border border-slate-200 rounded-lg cursor-not-allowed flex items-center gap-1">Next <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i></button>`;
+        html += `<button disabled class="px-2.5 py-1 text-xs font-medium text-slate-300 dark:text-zinc-600 bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-lg cursor-not-allowed flex items-center gap-1">Next <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i></button>`;
       }
 
       html += '</div>';
@@ -2146,10 +2126,10 @@
         if (summary) summary.innerText = "No registered voters found matching your criteria.";
         renderPagination({ total_pages: 0 });
         grid.innerHTML = `
-          <div class="col-span-full py-16 text-center text-slate-400">
-            <i data-lucide="user-x" class="w-12 h-12 mx-auto mb-3 text-slate-300"></i>
-            <h4 class="text-base font-bold text-slate-700">No matching electors found</h4>
-            <p class="text-xs text-slate-400 mt-1 max-w-md mx-auto">Try checking your spelling, entering a partial name or EPIC number, or adjusting the active filters.</p>
+          <div class="col-span-full py-16 text-center text-slate-400 dark:text-zinc-500">
+            <i data-lucide="user-x" class="w-12 h-12 mx-auto mb-3 text-slate-300 dark:text-zinc-600"></i>
+            <h4 class="text-base font-bold text-slate-700 dark:text-zinc-200">No matching electors found</h4>
+            <p class="text-xs text-slate-400 dark:text-zinc-400 mt-1 max-w-md mx-auto">Try checking your spelling, entering a partial name or EPIC number, or adjusting the active filters.</p>
           </div>
         `;
         lucide.createIcons();
@@ -2159,7 +2139,7 @@
       const start = ((data.page - 1) * data.limit) + 1;
       const end = Math.min(data.page * data.limit, data.total);
       if (summary) {
-        summary.innerHTML = `Displaying <span class="font-bold text-slate-800">${start.toLocaleString()} - ${end.toLocaleString()}</span> of <span class="font-bold text-emerald-700">${data.total.toLocaleString()}</span> voters`;
+        summary.innerHTML = `Displaying <span class="font-bold text-slate-800 dark:text-zinc-200">${start.toLocaleString()} - ${end.toLocaleString()}</span> of <span class="font-bold text-emerald-700 dark:text-emerald-400">${data.total.toLocaleString()}</span> voters`;
       }
 
       renderPagination(data);
@@ -2167,12 +2147,12 @@
       let didYouMeanBanner = '';
       if (data && data.did_you_mean) {
         didYouMeanBanner = `
-          <div class="col-span-full mb-3 p-3 bg-amber-50/90 border border-amber-200 rounded-2xl text-xs text-amber-900 flex items-center justify-between gap-2 shadow-2xs">
+          <div class="col-span-full mb-3 p-3 bg-amber-50/90 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-2xl text-xs text-amber-900 dark:text-amber-200 flex items-center justify-between gap-2 shadow-2xs">
             <div class="flex items-center gap-2">
               <span class="text-base">💡</span>
-              <span>Showing results for <strong class="font-extrabold text-slate-900 underline text-sm">${data.did_you_mean}</strong></span>
+              <span>Showing results for <strong class="font-extrabold text-slate-900 dark:text-white underline text-sm">${data.did_you_mean}</strong></span>
             </div>
-            <button type="button" onclick="forceSearchOriginal('${(state.lastTypedQuery || '').replace(/'/g, "\\'")}')" class="text-[11px] text-blue-700 hover:underline font-semibold cursor-pointer">
+            <button type="button" onclick="forceSearchOriginal('${(state.lastTypedQuery || '').replace(/'/g, "\\'")}')" class="text-[11px] text-blue-700 dark:text-blue-400 hover:underline font-semibold cursor-pointer">
               Search instead for <em>${state.lastTypedQuery || ''}</em>
             </button>
           </div>
@@ -2323,16 +2303,16 @@
         const isSpell = item.type === 'SPELLING_CORRECTION';
         return `
           <div id="suggest-item-${idx}" 
-               class="px-4 py-2.5 hover:bg-emerald-50 cursor-pointer flex items-center justify-between gap-3 transition text-left" 
+               class="px-4 py-2.5 hover:bg-emerald-50 dark:hover:bg-zinc-800/80 cursor-pointer flex items-center justify-between gap-3 transition text-left" 
                onmousedown="selectSuggestion(${idx})">
             <div class="min-w-0">
-              <p class="text-sm font-bold ${isSpell ? 'text-amber-800' : 'text-slate-900'} truncate flex items-center gap-1.5">
-                ${isSpell ? '<span class="text-xs">💡</span>' : '<span class="text-xs text-slate-400">🔍</span>'}
+              <p class="text-sm font-bold ${isSpell ? 'text-amber-800 dark:text-amber-300' : 'text-slate-900 dark:text-zinc-100'} truncate flex items-center gap-1.5">
+                ${isSpell ? '<span class="text-xs">💡</span>' : '<span class="text-xs text-slate-400 dark:text-zinc-500">🔍</span>'}
                 <span>${item.title || item.text}</span>
               </p>
-              <p class="text-[11px] text-slate-500 truncate">${item.subtitle || ''}</p>
+              <p class="text-[11px] text-slate-500 dark:text-zinc-400 truncate">${item.subtitle || ''}</p>
             </div>
-            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${isSpell ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-slate-100 text-slate-700 border border-slate-200'} shrink-0">
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${isSpell ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-700/60' : 'bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 border border-slate-200 dark:border-zinc-700'} shrink-0">
               ${isSpell ? 'Did you mean?' : (item.relative_name ? `s/o ${item.relative_name.split(' ')[0]}` : 'Elector')}
             </span>
           </div>
@@ -2354,7 +2334,18 @@
       }
     }
 
+    function handleMobileSearchSubmit(event) {
+      if (event) event.preventDefault();
+      const box = document.getElementById('searchSuggestionsBox');
+      if (box) box.classList.add('hidden');
+      const input = document.getElementById('searchQuery');
+      if (input) input.blur();
+      executeSearch(1);
+      return false;
+    }
+
     function handleSearchQueryKeyDown(event) {
+      const isEnter = event.key === 'Enter' || event.keyCode === 13 || event.which === 13;
       const box = document.getElementById('searchSuggestionsBox');
       if (box && !box.classList.contains('hidden') && currentSuggestions.length > 0) {
         if (event.key === 'ArrowDown') {
@@ -2367,12 +2358,14 @@
           activeSuggestIndex = (activeSuggestIndex - 1 + currentSuggestions.length) % currentSuggestions.length;
           updateActiveSuggestHighlight();
           return;
-        } else if (event.key === 'Enter') {
+        } else if (isEnter) {
           event.preventDefault();
           if (activeSuggestIndex >= 0 && activeSuggestIndex < currentSuggestions.length) {
             selectSuggestion(activeSuggestIndex);
           } else {
             box.classList.add('hidden');
+            const input = document.getElementById('searchQuery');
+            if (input) input.blur();
             executeSearch(1);
           }
           return;
@@ -2380,7 +2373,10 @@
           box.classList.add('hidden');
           return;
         }
-      } else if (event.key === 'Enter') {
+      } else if (isEnter) {
+        event.preventDefault();
+        const input = document.getElementById('searchQuery');
+        if (input) input.blur();
         executeSearch(1);
       }
     }
@@ -2390,13 +2386,13 @@
         const el = document.getElementById(`suggest-item-${idx}`);
         if (el) {
           if (idx === activeSuggestIndex) {
-            el.classList.add('bg-emerald-100', 'text-emerald-950');
+            el.classList.add('bg-emerald-100', 'text-emerald-950', 'dark:bg-emerald-950/80', 'dark:text-emerald-200');
             const input = document.getElementById('searchQuery');
             if (input && currentSuggestions[idx]) {
               input.value = currentSuggestions[idx].text;
             }
           } else {
-            el.classList.remove('bg-emerald-100', 'text-emerald-950');
+            el.classList.remove('bg-emerald-100', 'text-emerald-950', 'dark:bg-emerald-950/80', 'dark:text-emerald-200');
           }
         }
       });
@@ -2596,14 +2592,14 @@
         treeView.classList.remove('hidden');
         gridView.classList.add('hidden');
         if (zoomControls) zoomControls.classList.remove('hidden');
-        btnTree.className = "px-2.5 py-1 rounded-md font-semibold bg-white text-slate-800 shadow-xs flex items-center gap-1 transition";
-        btnGrid.className = "px-2.5 py-1 rounded-md font-semibold text-slate-500 hover:text-slate-800 flex items-center gap-1 transition";
+        btnTree.className = "px-2.5 py-1 rounded-md font-semibold bg-white dark:bg-zinc-800 text-slate-800 dark:text-zinc-100 shadow-xs flex items-center gap-1 transition cursor-pointer";
+        btnGrid.className = "px-2.5 py-1 rounded-md font-semibold text-slate-500 hover:text-slate-800 dark:text-zinc-400 dark:hover:text-zinc-200 flex items-center gap-1 transition cursor-pointer";
       } else {
         treeView.classList.add('hidden');
         gridView.classList.remove('hidden');
         if (zoomControls) zoomControls.classList.add('hidden');
-        btnGrid.className = "px-2.5 py-1 rounded-md font-semibold bg-white text-slate-800 shadow-xs flex items-center gap-1 transition";
-        btnTree.className = "px-2.5 py-1 rounded-md font-semibold text-slate-500 hover:text-slate-800 flex items-center gap-1 transition";
+        btnGrid.className = "px-2.5 py-1 rounded-md font-semibold bg-white dark:bg-zinc-800 text-slate-800 dark:text-zinc-100 shadow-xs flex items-center gap-1 transition cursor-pointer";
+        btnTree.className = "px-2.5 py-1 rounded-md font-semibold text-slate-500 hover:text-slate-800 dark:text-zinc-400 dark:hover:text-zinc-200 flex items-center gap-1 transition cursor-pointer";
       }
     }
 
@@ -3210,21 +3206,21 @@
                   ${isDeceased ? '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-300">🕊️ Ancestor</span>' : ''}
                   ${isDel ? '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-800">🚫 Deleted</span>' : ''}
                 </div>
-                <h5 class="text-xs sm:text-sm font-bold ${isDel ? 'line-through text-slate-400' : 'text-slate-900'} break-words mt-1" title="${m.name || ''}">${m.name || 'Unnamed'}</h5>
-                <p class="text-[11px] text-slate-500 flex items-center gap-1 flex-wrap">
+                <h5 class="text-xs sm:text-sm font-bold ${isDel ? 'line-through text-slate-400 dark:text-zinc-500' : 'text-slate-900 dark:text-zinc-100'} break-words mt-1" title="${m.name || ''}">${m.name || 'Unnamed'}</h5>
+                <p class="text-[11px] text-slate-500 dark:text-zinc-400 flex items-center gap-1 flex-wrap">
                   <span>${m.gender === 'M' ? 'Male' : (m.gender === 'F' ? 'Female' : 'Other')}</span>
                   <span>•</span>
-                  <span class="font-semibold text-slate-700">${ageDisplay}</span>
-                  <span class="text-slate-400 font-mono text-[10px]">(${m.house_no ? 'H.' + m.house_no : 'Compound'})</span>
+                  <span class="font-semibold text-slate-700 dark:text-zinc-300">${ageDisplay}</span>
+                  <span class="text-slate-400 dark:text-zinc-500 font-mono text-[10px]">(${m.house_no ? 'H.' + m.house_no : 'Compound'})</span>
                 </p>
               </div>
               <div class="flex items-center gap-1">
                 ${!isDeceased ? `
-                  <button onclick="openVoterModalByKey('${key}')" class="p-1.5 text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition" title="View Voter Slip">
+                  <button onclick="openVoterModalByKey('${key}')" class="p-1.5 text-slate-400 hover:text-emerald-700 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-zinc-800 rounded-lg transition" title="View Voter Slip">
                     <i data-lucide="id-card" class="w-4 h-4"></i>
                   </button>
                   ${m.id ? `
-                    <button onclick="openFamilyModal(${m.id}, '${(m.name || '').replace(/'/g, "")}')" class="p-1.5 text-slate-400 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition" title="Focus Tree On This Person">
+                    <button onclick="openFamilyModal(${m.id}, '${(m.name || '').replace(/'/g, "")}')" class="p-1.5 text-slate-400 hover:text-amber-700 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-zinc-800 rounded-lg transition" title="Focus Tree On This Person">
                       <i data-lucide="network" class="w-4 h-4"></i>
                     </button>
                   ` : ''}
@@ -3684,23 +3680,23 @@
 
       if (b.unrelated_cohabitants && b.unrelated_cohabitants.length > 0) {
         html += `
-          <div class="mt-6 p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 text-xs flex flex-wrap items-center justify-between gap-2 max-w-xl mx-auto shadow-2xs">
+          <div class="mt-6 p-2.5 rounded-xl bg-slate-50 dark:bg-zinc-800/80 border border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-zinc-300 text-xs flex flex-wrap items-center justify-between gap-2 max-w-xl mx-auto shadow-2xs">
             <div class="flex items-center gap-2">
-              <i data-lucide="info" class="w-4 h-4 text-slate-500"></i>
+              <i data-lucide="info" class="w-4 h-4 text-slate-500 dark:text-zinc-400"></i>
               <span><strong>${b.unrelated_cohabitants.length} other electors</strong> reside at House #${t.house_no} under separate household units.</span>
             </div>
-            <button type="button" onclick="toggleUnrelatedDrawer()" class="text-xs font-bold text-blue-600 hover:text-blue-800 underline">View Co-residents</button>
+            <button type="button" onclick="toggleUnrelatedDrawer()" class="text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline">View Co-residents</button>
           </div>
-          <div id="ft-unrelated-drawer" class="hidden mt-2 p-3 bg-white rounded-xl border border-slate-200 shadow-sm max-w-xl mx-auto">
-            <h6 class="text-xs font-bold text-slate-700 mb-2">Unrelated Co-residents at House #${t.house_no} (Separate Clans)</h6>
+          <div id="ft-unrelated-drawer" class="hidden mt-2 p-3 bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800 shadow-sm max-w-xl mx-auto">
+            <h6 class="text-xs font-bold text-slate-700 dark:text-zinc-200 mb-2">Unrelated Co-residents at House #${t.house_no} (Separate Clans)</h6>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto">
               ${b.unrelated_cohabitants.map(u => `
-                <div class="p-2 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-between text-xs">
+                <div class="p-2 rounded-lg bg-slate-50 dark:bg-zinc-800 border border-slate-100 dark:border-zinc-700 flex items-center justify-between text-xs">
                   <div>
-                    <div class="font-bold text-slate-800">${u.name}</div>
-                    <div class="text-[10px] text-slate-500">${u.age}y ${u.gender} • Rel: ${u.relative_name} (${u.relation_type})</div>
+                    <div class="font-bold text-slate-800 dark:text-zinc-100">${u.name}</div>
+                    <div class="text-[10px] text-slate-500 dark:text-zinc-400">${u.age}y ${u.gender} • Rel: ${u.relative_name} (${u.relation_type})</div>
                   </div>
-                  <span class="text-[9px] font-mono text-slate-400">${u.epic_no || ''}</span>
+                  <span class="text-[9px] font-mono text-slate-400 dark:text-zinc-500">${u.epic_no || ''}</span>
                 </div>
               `).join('')}
             </div>
@@ -4204,9 +4200,9 @@
                   <div class="w-14 h-14 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center mb-3 shadow-sm">
                     <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
                   </div>
-                  <h4 class="text-base font-bold text-slate-800">${ps.building_name || ps.name || h.polling_station_name}</h4>
-                  <p class="text-xs text-slate-600 font-mono mt-1 font-semibold">${coordsStr}</p>
-                  <p class="text-xs text-slate-500 mt-0.5">Designated Booth #${ps.part_no || h.part_no} • ${ps.locality || h.section_name}</p>
+                  <h4 class="text-base font-bold text-slate-800 dark:text-zinc-100">${ps.building_name || ps.name || h.polling_station_name}</h4>
+                  <p class="text-xs text-slate-600 dark:text-zinc-300 font-mono mt-1 font-semibold">${coordsStr}</p>
+                  <p class="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">Designated Booth #${ps.part_no || h.part_no} • ${ps.locality || h.section_name}</p>
                   <div class="mt-4 flex gap-2">
                     <a href="${gmapsLink}" target="_blank" rel="noopener noreferrer" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md transition">
                       Open in Google Maps ↗
@@ -4394,7 +4390,7 @@
             const booths = ac.polling_stations_count || ac.polling_booths_count || 4;
 
             return `
-              <div onclick="showAcDetail(${ac.ac_no})" class="bg-white dark:bg-zinc-850/80 rounded-xl p-3.5 border border-slate-200 dark:border-zinc-800 shadow-xs hover:border-emerald-500/50 hover:shadow-md transition active:scale-[0.99] cursor-pointer space-y-2.5">
+              <div onclick="showAcDetail(${ac.ac_no})" class="bg-white dark:bg-zinc-900 rounded-xl p-3.5 border border-slate-200 dark:border-zinc-800 shadow-xs hover:border-emerald-500/50 hover:shadow-md transition active:scale-[0.99] cursor-pointer space-y-2.5">
                 <!-- Header: AC No, District, Booths -->
                 <div class="flex items-center justify-between gap-2">
                   <div class="flex items-center gap-1.5 min-w-0">
@@ -4461,7 +4457,7 @@
           tbody.innerHTML = filtered.map(ac => {
             const booths = ac.polling_stations_count || ac.polling_booths_count || 4;
             return `
-              <tr class="hover:bg-slate-50 dark:hover:bg-zinc-850/60 transition cursor-pointer" onclick="showAcDetail(${ac.ac_no})">
+              <tr class="hover:bg-slate-50 dark:hover:bg-zinc-800 transition cursor-pointer" onclick="showAcDetail(${ac.ac_no})">
                 <td class="py-3 px-4 font-mono font-semibold text-slate-700 dark:text-zinc-300">${ac.ac_no}</td>
                 <td class="py-3 px-4 font-bold text-slate-900 dark:text-white">${escapeHtml(ac.ac_name)}</td>
                 <td class="py-3 px-4 text-slate-500 dark:text-zinc-400">${escapeHtml(ac.district)}</td>
@@ -4508,14 +4504,14 @@
         const psContainer = document.getElementById('acModalPollingStations');
         if (data.polling_stations && data.polling_stations.length > 0) {
           psContainer.innerHTML = data.polling_stations.map(ps => `
-            <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex justify-between items-center text-xs">
+            <div class="p-2.5 bg-slate-50 dark:bg-zinc-800 rounded-xl border border-slate-200 dark:border-zinc-700 flex justify-between items-center text-xs">
               <div>
-                <p class="font-bold text-slate-800">${ps.polling_station_name}</p>
-                <p class="text-slate-500">Part No: ${ps.part_no}</p>
+                <p class="font-bold text-slate-800 dark:text-zinc-100">${ps.polling_station_name}</p>
+                <p class="text-slate-500 dark:text-zinc-400">Part No: ${ps.part_no}</p>
               </div>
               <div class="text-right">
-                <span class="font-semibold text-emerald-700">${ps.voter_count} voters</span>
-                <p class="text-[10px] text-slate-400">M: ${ps.male} | F: ${ps.female} | TG: ${ps.third_gender || 0}</p>
+                <span class="font-semibold text-emerald-700 dark:text-emerald-400">${ps.voter_count} voters</span>
+                <p class="text-[10px] text-slate-400 dark:text-zinc-500">M: ${ps.male} | F: ${ps.female} | TG: ${ps.third_gender || 0}</p>
               </div>
             </div>
           `).join('');
@@ -4898,7 +4894,7 @@
         const safeStudentName = escapeHtml(s.student_name || '').replace(/'/g, "\\'");
 
         return `
-          <div class="bg-white dark:bg-zinc-850/90 rounded-2xl p-4 border border-slate-200 dark:border-zinc-800 shadow-xs space-y-3 transition-colors">
+          <div class="bg-white dark:bg-zinc-900 rounded-2xl p-4 border border-slate-200 dark:border-zinc-800 shadow-xs space-y-3 transition-colors">
             <!-- Header: Roll No & Status -->
             <div class="flex items-start justify-between gap-2">
               <div class="min-w-0">
@@ -5023,7 +5019,7 @@
         const safeStudentName = escapeHtml(s.student_name || '').replace(/'/g, "\\'");
 
         return `
-          <tr class="hover:bg-slate-50 dark:hover:bg-zinc-850/50 transition">
+          <tr class="hover:bg-slate-50 dark:hover:bg-zinc-800 transition">
             <!-- Roll / Reg # -->
             <td class="py-3 px-3.5 font-mono text-xs font-semibold text-slate-800 dark:text-zinc-200 whitespace-nowrap">
               <span class="px-2 py-0.5 rounded-md bg-cyan-100 dark:bg-cyan-950/80 text-cyan-800 dark:text-cyan-300 border border-cyan-300 dark:border-cyan-800">
