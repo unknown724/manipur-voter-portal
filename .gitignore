@@ -3,6 +3,8 @@ voters.db
 *.db-journal
 *.sqlite3
 uploads/
+data/
+*.pdf
 
 # Python & Virtual Environments
 __pycache__/
@@ -22,8 +24,13 @@ build/
 .vscode/
 *.swp
 *.swo
+.agent/
+.agents/
+.gemini/
+.gsd/
+tasks/
 
-# Temporary test and logs
+# Temporary test, scratch and logs
 scratch/
 temp_eroll.html
 _temp_test_*.js

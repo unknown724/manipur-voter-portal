@@ -13,7 +13,7 @@ import difflib
 import requests
 import urllib.parse
 from typing import Optional, List
-from fastapi import FastAPI, UploadFile, File, Query, HTTPException, Body
+from fastapi import FastAPI, UploadFile, File, Query, HTTPException, Body, Header
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -2655,6 +2655,181 @@ async def submit_downloader_captcha(data: dict = Body(...)):
             "voters_added": 0
         }
 
+# ----------------------------------------------------
+# NERISTian Students Protected Directory Endpoints
+# ----------------------------------------------------
+TARGET_NERIST_PASSKEY = "nowyouseeme"
+
+def mask_phone_number(phone: str) -> str:
+    if not phone or len(str(phone).strip()) < 8:
+        return "--"
+    cleaned = re.sub(r'[^0-9\+]', '', str(phone).strip())
+    if len(cleaned) <= 6:
+        return "••••••"
+    prefix = cleaned[:5]  # e.g. "+9198"
+    suffix = cleaned[-2:] # e.g. "86"
+    return f"{prefix}••••••{suffix}"
+
+@app.get("/api/nerist/stats")
+def get_nerist_stats(
+    passkey: Optional[str] = None,
+    x_passkey: Optional[str] = Header(None)
+):
+    if passkey != TARGET_NERIST_PASSKEY and x_passkey != TARGET_NERIST_PASSKEY:
+        raise HTTPException(status_code=401, detail="Access restricted. Valid administrator passkey required.")
+
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT COUNT(*) FROM nerist_students;")
+    total = c.fetchone()[0]
+    
+    c.execute("SELECT match_status, COUNT(*) FROM nerist_students GROUP BY match_status;")
+    status_counts = dict(c.fetchall())
+    
+    c.execute("SELECT department_name, COUNT(*) FROM nerist_students GROUP BY department_name ORDER BY COUNT(*) DESC;")
+    dept_counts = [{"name": r[0] or "General", "count": r[1]} for r in c.fetchall()]
+    conn.close()
+    
+    triangulated = status_counts.get("HOUSEHOLD_TRIANGULATED", 0)
+    ac_matched = status_counts.get("AC_MATCHED", 0)
+    student_linked = status_counts.get("STUDENT_ELECTOR_LINKED", 0)
+    parent_verified = status_counts.get("PARENT_VERIFIED", 0)
+    unmatched = status_counts.get("UNMATCHED", 0)
+    linked_total = total - unmatched
+    
+    return {
+        "total_students": total,
+        "triangulated": triangulated,
+        "ac_matched": ac_matched,
+        "student_linked": student_linked,
+        "parent_verified": parent_verified,
+        "unmatched": unmatched,
+        "linked_total": linked_total,
+        "match_percentage": round((linked_total / total * 100), 1) if total > 0 else 0,
+        "departments": dept_counts
+    }
+
+@app.get("/api/nerist/students")
+def get_nerist_students(
+    q: Optional[str] = None,
+    dept: Optional[str] = None,
+    status: Optional[str] = None,
+    page: int = 1,
+    limit: int = 25,
+    passkey: Optional[str] = None,
+    x_passkey: Optional[str] = Header(None)
+):
+    if passkey != TARGET_NERIST_PASSKEY and x_passkey != TARGET_NERIST_PASSKEY:
+        raise HTTPException(status_code=401, detail="Access restricted. Valid administrator passkey required.")
+
+    is_unlocked = True
+    
+    conn = get_connection()
+    c = conn.cursor()
+    
+    where_clauses = []
+    params = []
+    
+    if q and q.strip():
+        tokens = [t.strip() for t in q.strip().split() if t.strip()]
+        for token in tokens:
+            term = f"%{token}%"
+            where_clauses.append("(n.student_name LIKE ? OR n.roll_no LIKE ? OR n.user_id LIKE ? OR n.father_name LIKE ? OR n.mother_name LIKE ? OR n.ac_name LIKE ? OR n.address LIKE ?)")
+            params.extend([term, term, term, term, term, term, term])
+        
+    if dept and dept.strip() and dept.lower() != 'all':
+        where_clauses.append("n.department_name = ?")
+        params.append(dept.strip())
+        
+    if status and status.strip() and status.lower() != 'all':
+        where_clauses.append("n.match_status = ?")
+        params.append(status.strip())
+        
+    where_str = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+    
+    c.execute(f"SELECT COUNT(*) FROM nerist_students n {where_str};", params)
+    total_count = c.fetchone()[0]
+    
+    offset = (page - 1) * limit
+    sql = f"""
+        SELECT n.id, n.user_id, n.roll_no, n.student_name, n.student_mobile, n.email, n.father_name, n.mother_name,
+               n.parents_mobile, n.dob, n.calculated_age, n.address, n.pincode, n.department_name, n.program_name,
+               n.session, n.linked_student_epic, n.linked_father_epic, n.linked_mother_epic, n.ac_no, n.ac_name,
+               n.part_no, n.house_no, n.match_status, n.match_notes,
+               vs.id AS student_voter_id,
+               vf.id AS father_voter_id,
+               vm.id AS mother_voter_id
+        FROM nerist_students n
+        LEFT JOIN voters vs ON n.linked_student_epic = vs.epic_no AND n.linked_student_epic != ''
+        LEFT JOIN voters vf ON n.linked_father_epic = vf.epic_no AND n.linked_father_epic != ''
+        LEFT JOIN voters vm ON n.linked_mother_epic = vm.epic_no AND n.linked_mother_epic != ''
+        {where_str}
+        ORDER BY n.id ASC
+        LIMIT ? OFFSET ?;
+    """
+    c.execute(sql, params + [limit, offset])
+    rows = c.fetchall()
+    conn.close()
+    
+    students = []
+    for r in rows:
+        raw_s_mobile = r[4] or ""
+        raw_p_mobile = r[8] or ""
+        student_voter_id = r[25]
+        father_voter_id = r[26]
+        mother_voter_id = r[27]
+        target_voter_id = student_voter_id or father_voter_id or mother_voter_id
+        is_student_verified = bool(r[16] and student_voter_id)
+        is_father_verified = bool(r[17] and father_voter_id)
+        is_mother_verified = bool(r[18] and mother_voter_id)
+        
+        students.append({
+            "id": r[0],
+            "user_id": r[1],
+            "roll_no": r[2],
+            "student_name": r[3],
+            "student_mobile": raw_s_mobile if is_unlocked else mask_phone_number(raw_s_mobile),
+            "raw_student_mobile": raw_s_mobile if is_unlocked else None,
+            "email": r[5],
+            "father_name": r[6],
+            "mother_name": r[7],
+            "parents_mobile": raw_p_mobile if is_unlocked else mask_phone_number(raw_p_mobile),
+            "raw_parents_mobile": raw_p_mobile if is_unlocked else None,
+            "dob": r[9],
+            "calculated_age": r[10],
+            "address": r[11],
+            "pincode": r[12],
+            "department_name": r[13],
+            "program_name": r[14],
+            "session": r[15],
+            "linked_student_epic": r[16],
+            "linked_father_epic": r[17],
+            "linked_mother_epic": r[18],
+            "ac_no": r[19],
+            "ac_name": r[20],
+            "part_no": r[21],
+            "house_no": r[22],
+            "match_status": r[23],
+            "match_notes": r[24],
+            "student_voter_id": student_voter_id,
+            "father_voter_id": father_voter_id,
+            "mother_voter_id": mother_voter_id,
+            "target_voter_id": target_voter_id,
+            "is_student_verified": is_student_verified,
+            "is_father_verified": is_father_verified,
+            "is_mother_verified": is_mother_verified
+        })
+        
+    return {
+        "success": True,
+        "is_unlocked": is_unlocked,
+        "total": total_count,
+        "page": page,
+        "limit": limit,
+        "total_pages": (total_count + limit - 1) // limit if total_count > 0 else 1,
+        "students": students
+    }
+
 # Mount static folder
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
@@ -2662,7 +2837,14 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 def serve_index():
     index_file = os.path.join(STATIC_DIR, "index.html")
     if os.path.exists(index_file):
-        return FileResponse(index_file)
+        return FileResponse(
+            index_file,
+            headers={
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0"
+            }
+        )
     return {"message": "Manipur Voter Search API is running. UI is being loaded..."}
 
 if __name__ == "__main__":
