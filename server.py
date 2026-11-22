@@ -79,7 +79,7 @@ def get_stats():
         SUM(CASE WHEN status = 'DELETED' THEN 1 ELSE 0 END) as deleted_voters,
         SUM(CASE WHEN gender = 'M' THEN 1 ELSE 0 END) as total_male,
         SUM(CASE WHEN gender = 'F' THEN 1 ELSE 0 END) as total_female,
-        SUM(CASE WHEN gender = 'O' THEN 1 ELSE 0 END) as total_other,
+        SUM(CASE WHEN gender NOT IN ('M', 'F') AND gender IS NOT NULL THEN 1 ELSE 0 END) as total_other,
         AVG(CASE WHEN status != 'DELETED' THEN age ELSE NULL END) as avg_age,
         COUNT(DISTINCT ac_no) as active_acs
     FROM voters
@@ -252,9 +252,10 @@ def expand_phonetic_variants(word: str) -> List[str]:
     return list(variants)
 
 def build_fts_query(text: str) -> str:
-    tokens = [w for w in text.split() if w]
+    cleaned = re.sub(r'[^\w\s]', ' ', text)
+    tokens = [w for w in cleaned.split() if w]
     if not tokens:
-        return ""
+        return '""'
     token_clauses = []
     for t in tokens:
         vars_list = expand_phonetic_variants(t)
@@ -331,8 +332,23 @@ def get_search_suggestions(q: str = Query(..., min_length=2), ac_no: Optional[in
     LIMIT 8;
     """
     params.extend([eval_q, f"{eval_q}%", f"%{eval_q}%", f"%{eval_q}%"])
-    cursor.execute(sql, params)
-    rows = cursor.fetchall()
+    try:
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+    except Exception:
+        like_params = [f"%{eval_q}%", f"%{eval_q}%"]
+        like_ac = ""
+        if ac_no:
+            like_ac = " AND ac_no = ?"
+            like_params.append(ac_no)
+        like_sql = f"""
+        SELECT DISTINCT name, ac_name, part_no, house_no, id, relative_name
+        FROM voters
+        WHERE (name LIKE ? OR relative_name LIKE ?) {like_ac}
+        LIMIT 8;
+        """
+        cursor.execute(like_sql, like_params)
+        rows = cursor.fetchall()
     conn.close()
     
     suggestions = []
@@ -387,7 +403,7 @@ def search_voters(
     cursor = conn.cursor()
 
     did_you_mean = None
-    clean_q = q.strip().replace("'", "").replace('"', "") if q and q.strip() else None
+    clean_q = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', q).strip().replace("'", "").replace('"', "") if q and q.strip() else None
 
     def execute_query_run(search_text: Optional[str]):
         params = []
@@ -417,39 +433,69 @@ def search_voters(
             params.append(max_age)
 
         count_sql = f"SELECT COUNT(*) FROM ({sql_base})"
-        cursor.execute(count_sql, params)
-        total_cnt = cursor.fetchone()[0]
 
-        # Multi-tiered relevance ranking:
-        # Tier 1: Exact match on Elector's name
-        # Tier 2: Elector name starts with query
-        # Tier 3: Elector name contains query
-        # Tier 4: Exact match on Relative / Father name
-        # Tier 5: Relative / Father name contains query
-        # Tier 6: Everything else
-        if search_text:
-            sql_ordered = sql_base + """
-            ORDER BY 
-              CASE 
-                WHEN LOWER(v.name) = LOWER(?) THEN 1
-                WHEN LOWER(v.name) LIKE LOWER(?) THEN 2
-                WHEN LOWER(v.name) LIKE LOWER(?) THEN 3
-                WHEN LOWER(v.relative_name) = LOWER(?) THEN 4
-                WHEN LOWER(v.relative_name) LIKE LOWER(?) THEN 5
-                ELSE 6
-              END ASC, v.id ASC LIMIT ? OFFSET ?
-            """
-            query_params = list(params)
-            query_params.extend([search_text, f"{search_text}%", f"%{search_text}%", search_text, f"%{search_text}%", limit, offset])
-            cursor.execute(sql_ordered, query_params)
-        else:
-            sql_ordered = sql_base + " ORDER BY v.id ASC LIMIT ? OFFSET ?"
-            query_params = list(params)
-            query_params.extend([limit, offset])
-            cursor.execute(sql_ordered, query_params)
+        try:
+            cursor.execute(count_sql, params)
+            total_cnt = cursor.fetchone()[0]
 
-        rows = [dict(r) for r in cursor.fetchall()]
-        return total_cnt, rows
+            # Multi-tiered relevance ranking:
+            # Tier 1: Exact match on Elector's name
+            # Tier 2: Elector name starts with query
+            # Tier 3: Elector name contains query
+            # Tier 4: Exact match on Relative / Father name
+            # Tier 5: Relative / Father name contains query
+            # Tier 6: Everything else
+            if search_text:
+                sql_ordered = sql_base + """
+                ORDER BY 
+                  CASE 
+                    WHEN LOWER(v.name) = LOWER(?) THEN 1
+                    WHEN LOWER(v.name) LIKE LOWER(?) THEN 2
+                    WHEN LOWER(v.name) LIKE LOWER(?) THEN 3
+                    WHEN LOWER(v.relative_name) = LOWER(?) THEN 4
+                    WHEN LOWER(v.relative_name) LIKE LOWER(?) THEN 5
+                    ELSE 6
+                  END ASC, v.id ASC LIMIT ? OFFSET ?
+                """
+                query_params = list(params)
+                query_params.extend([search_text, f"{search_text}%", f"%{search_text}%", search_text, f"%{search_text}%", limit, offset])
+                cursor.execute(sql_ordered, query_params)
+            else:
+                sql_ordered = sql_base + " ORDER BY v.id ASC LIMIT ? OFFSET ?"
+                query_params = list(params)
+                query_params.extend([limit, offset])
+                cursor.execute(sql_ordered, query_params)
+
+            rows = [dict(r) for r in cursor.fetchall()]
+            return total_cnt, rows
+        except Exception:
+            # Resilient fallback to pure SQL LIKE search if FTS encounters malformed expressions
+            like_params = []
+            like_base = "SELECT v.* FROM voters v WHERE 1=1"
+            if search_text:
+                like_base += " AND (v.name LIKE ? OR v.relative_name LIKE ? OR v.epic_no LIKE ? OR v.house_no LIKE ?)"
+                like_params.extend([f"%{search_text}%", f"%{search_text}%", f"%{search_text}%", f"%{search_text}%"])
+            if ac_no:
+                like_base += " AND v.ac_no = ?"
+                like_params.append(ac_no)
+            if gender:
+                like_base += " AND v.gender = ?"
+                like_params.append(gender)
+            if min_age:
+                like_base += " AND v.age >= ?"
+                like_params.append(min_age)
+            if max_age:
+                like_base += " AND v.age <= ?"
+                like_params.append(max_age)
+
+            cursor.execute(f"SELECT COUNT(*) FROM ({like_base})", like_params)
+            total_cnt = cursor.fetchone()[0]
+
+            like_ordered = like_base + " ORDER BY v.id ASC LIMIT ? OFFSET ?"
+            like_params.extend([limit, offset])
+            cursor.execute(like_ordered, like_params)
+            rows = [dict(r) for r in cursor.fetchall()]
+            return total_cnt, rows
 
     total_results, results = execute_query_run(clean_q)
 

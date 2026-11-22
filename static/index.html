@@ -3401,9 +3401,6 @@
         const descEl = document.getElementById('map-section-desc');
         if (descEl) descEl.innerText = `Designated Booth #${ps.part_no || h.part_no} • Locality: ${ps.locality || h.section_name} • ECI Part: ${ps.name || h.polling_station_name}`;
 
-        const boothBuildingEl = document.getElementById('map-booth-building-name');
-        if (boothBuildingEl) boothBuildingEl.innerText = ps.building_name || ps.name || 'Polling Station';
-
         const latVal = ps.latitude || h.latitude;
         const lngVal = ps.longitude || h.longitude;
         const coordsStr = `${latVal.toFixed(5)}° N, ${lngVal.toFixed(5)}° E`;
