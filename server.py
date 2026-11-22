@@ -841,9 +841,27 @@ def get_voter_family(voter_id: int):
     t_words = filter_core_words(clean_words(t_name))
     r_words = filter_core_words(clean_words(t_rel))
 
-    # If declared relative is a single given name (e.g. 'Pishak', 'Shyam'), it is NOT a clan!
-    # Clan is inherited from the target elector.
-    if len(r_words) <= 1:
+    # For married female, husband's clan is the patrilineal household clan
+    if t_sex == "F" and t_rel_type == "Husband":
+        # 1. Look for husband in same house
+        husband_m = next((m for m in same_house if m.get("gender") == "M" and match_person_names(m["name"], t_rel)), None)
+        if husband_m:
+            primary_clan = extract_clan_or_surname(husband_m["name"])
+        elif rel_clan and len(r_words) > 1:
+            primary_clan = rel_clan
+        else:
+            # Look for husband in the same booth
+            cursor.execute("""
+                SELECT name FROM voters 
+                WHERE ac_no = ? AND part_no = ? AND gender = 'M' AND abs(age - ?) <= 25
+            """, (ac_no, part_no, t_age))
+            b_husbands = [dict(r) for r in cursor.fetchall()]
+            match_h = next((h for h in b_husbands if match_person_names(h["name"], t_rel)), None)
+            if match_h:
+                primary_clan = extract_clan_or_surname(match_h["name"])
+            else:
+                primary_clan = target_clan
+    elif len(r_words) <= 1:
         primary_clan = target_clan
     else:
         if t_words and rel_clan and t_words[-1].lower() == rel_clan.lower():
@@ -880,12 +898,29 @@ def get_voter_family(voter_id: int):
                     if match_person_names(t_name, other_m.get("relative_name") or "", primary_clan):
                         is_daughter_in_law = True
                         break
+        # Condition 3.7: Husband's co-resident parents/siblings when target is married female
+        is_in_law_match = False
+        if t_sex == "F" and t_rel_type == "Husband":
+            husband_m = next((h for h in same_house if h.get("gender") == "M" and match_person_names(h["name"], t_rel)), None)
+            if husband_m:
+                h_rel = husband_m.get("relative_name") or ""
+                if h_rel:
+                    if m.get("gender") == "M" and match_person_names(m["name"], h_rel, primary_clan):
+                        is_in_law_match = True
+                    elif m.get("gender") == "F" and m_rel_type == "Husband" and match_person_names(m_rel, h_rel, primary_clan):
+                        is_in_law_match = True
+                    elif match_person_names(m_rel, h_rel, primary_clan):
+                        is_in_law_match = True
+        # Condition 3.8: Co-resident collateral sharing household clan through deceased male (e.g. Late Naorem Sunder Singh)
+        is_deceased_collateral = False
+        if m_rel_clan == primary_clan or (primary_clan and primary_clan.lower() in m_rel.lower()):
+            is_deceased_collateral = True
         # Condition 4: Target's child naming target
         is_child_match = match_person_names(t_name, m_rel, primary_clan)
         # Condition 5: Matrilocal elder (mother's father in house)
         is_matrilocal_elder = (m.get("gender") == "M" and (m.get("age") or 0) - t_age >= 35 and m_clan and t_rel_type == "Mother" and m_clan == extract_clan_or_surname(t_rel))
 
-        if is_clan_match or is_direct_parent or is_mother_match or is_spouse_match or is_daughter_in_law or is_child_match or is_matrilocal_elder:
+        if is_clan_match or is_direct_parent or is_mother_match or is_spouse_match or is_daughter_in_law or is_in_law_match or is_deceased_collateral or is_child_match or is_matrilocal_elder:
             target_family_cluster.append(m)
         else:
             unrelated_cohabitants.append(m)
@@ -957,10 +992,10 @@ def get_voter_family(voter_id: int):
         # Spouse (physiologically typical marital age gap: -18 to +25)
         is_spouse = False
         if -18 <= diff <= 25:
-            if t_sex == "F" and t_rel_type == "Husband" and match_person_names(m_name, t_rel):
+            if t_sex == "F" and t_rel_type == "Husband" and match_person_names(m_name, t_rel, primary_clan):
                 is_spouse = True
-            elif m_sex == "F" and m_rel_type == "Husband" and match_person_names(t_name, m_rel):
-                if not any(match_person_names(m_rel, f) for f in father_name_refs if f):
+            elif m_sex == "F" and m_rel_type == "Husband" and match_person_names(t_name, m_rel, primary_clan):
+                if not any(match_person_names(m_rel, f, primary_clan) for f in father_name_refs if f):
                     is_spouse = True
         if is_spouse and m["id"] not in assigned_ids:
             spouses.append(m)
@@ -1001,7 +1036,7 @@ def get_voter_family(voter_id: int):
                         grandparent_name_refs.add(m["relative_name"])
                     break
 
-    # If target is female and has spouse: link husband's father as In-Law / Household Elder
+    # If target is female and has spouse: link husband's father and mother as In-Laws / Household Elders
     if t_sex == "F" and t_rel_type == "Husband":
         for s in spouses:
             if s.get("relative_name") and s.get("relation_type") == "Father":
@@ -1010,10 +1045,21 @@ def get_voter_family(voter_id: int):
                 for m in candidate_pool:
                     if m["id"] in assigned_ids: continue
                     if m.get("gender") == "M" and match_person_names(m["name"], f_in_law_name, primary_clan) and (m.get("age", 0) - t_age >= 14):
+                        m["relationship_label"] = "Father-in-Law"
                         parents.append(m)
                         assigned_ids.add(m["id"])
                         if m.get("relative_name") and m.get("relation_type") == "Father":
                             grandparent_name_refs.add(m["relative_name"])
+                        # Also look for mother-in-law (married to father-in-law)
+                        for w in candidate_pool:
+                            if w["id"] in assigned_ids: continue
+                            if w.get("gender") == "F" and (w.get("relation_type") or "").capitalize() == "Husband":
+                                if match_person_names(m["name"], w.get("relative_name") or "", primary_clan) and (w.get("age", 0) - t_age >= 14):
+                                    w["relationship_label"] = "Mother-in-Law"
+                                    parents.append(w)
+                                    assigned_ids.add(w["id"])
+                                    mother_name_refs.add(w["name"])
+                                    break
                         break
 
     # --- PASS 1.6: Booth-Wide Father Lookup for Non-Numeric / Locality House Electors (e.g. 'Kakching Wairi') ---
@@ -1095,14 +1141,14 @@ def get_voter_family(voter_id: int):
         diff = m_age - t_age
 
         if m_sex == "F" and m_rel_type == "Husband" and 12 <= diff <= 55:
-            if any(match_person_names(m_rel, f_ref) for f_ref in father_name_refs):
+            if any(match_person_names(m_rel, f_ref, primary_clan) for f_ref in father_name_refs):
                 parents.append(m)
                 assigned_ids.add(m["id"])
                 mother_name_refs.add(m_name)
                 continue
 
         if t_sex == "F" and t_rel_type == "Husband" and m_rel_type == "Father" and -diff >= 12:
-            if t_rel and match_person_names(m_rel, t_rel):
+            if t_rel and match_person_names(m_rel, t_rel, primary_clan):
                 children.append(m)
                 assigned_ids.add(m["id"])
                 continue
@@ -1122,13 +1168,13 @@ def get_voter_family(voter_id: int):
 
         is_child = False
         # Child Case 1: Directly names target as father or mother
-        if match_person_names(t_name, m_rel) and 14 <= -diff <= 48:
+        if match_person_names(t_name, m_rel, primary_clan) and 14 <= -diff <= 48:
             is_child = True
         # Child Case 2: Target's spouse is named as parent
-        elif any(match_person_names(s["name"], m_rel) for s in spouses) and 14 <= -diff <= 48:
+        elif any(match_person_names(s["name"], m_rel, primary_clan) for s in spouses) and 14 <= -diff <= 48:
             is_child = True
         # Child Case 3: Target is married female, candidate names target's husband as father
-        elif t_sex == "F" and t_rel_type == "Husband" and match_person_names(t_rel, m_rel) and 14 <= -diff <= 48:
+        elif t_sex == "F" and t_rel_type == "Husband" and match_person_names(t_rel, m_rel, primary_clan) and 14 <= -diff <= 48:
             is_child = True
 
         if is_child:
@@ -1137,12 +1183,14 @@ def get_voter_family(voter_id: int):
             continue
 
         is_sibling = False
-        if abs(diff) <= 28:
-            if any(match_person_names(m_rel, f_ref) for f_ref in father_name_refs if f_ref):
+        if abs(diff) <= 36:
+            if any(match_person_names(m_rel, f_ref, primary_clan) for f_ref in father_name_refs if f_ref):
                 is_sibling = True
-            elif any(match_person_names(m_rel, m_ref) for m_ref in mother_name_refs if m_ref):
+            elif any(match_person_names(m_rel, m_ref, primary_clan) for m_ref in mother_name_refs if m_ref):
                 is_sibling = True
         if is_sibling:
+            if t_sex == "F" and t_rel_type == "Husband":
+                m["relationship_label"] = "Brother-in-Law" if m.get("gender") == "M" else "Sister-in-Law"
             siblings.append(m)
             assigned_ids.add(m["id"])
             continue
@@ -1213,7 +1261,17 @@ def get_voter_family(voter_id: int):
             # Must satisfy physiological biological parent-child age gap: 14 to 48 years
             if not (14 <= diff_bc <= 48): continue
             bc_clan = extract_clan_or_surname(bc["name"])
-            if primary_clan and bc_clan != primary_clan.lower(): continue
+            allowed_clans = set()
+            if primary_clan:
+                allowed_clans.add(primary_clan.lower())
+            if target_clan:
+                allowed_clans.add(target_clan.lower())
+            if spouses:
+                sp_clan = extract_clan_or_surname(spouses[0]["name"])
+                if sp_clan:
+                    allowed_clans.add(sp_clan.lower())
+            if allowed_clans and bc_clan not in allowed_clans:
+                continue
 
             # Maternal feasibility check against target's wife
             if spouses and spouses[0].get("gender") == "F" and not spouses[0].get("is_deceased"):
@@ -1282,26 +1340,60 @@ def get_voter_family(voter_id: int):
                     children_in_law.append(sp)
                     assigned_ids.add(sp["id"])
 
-            # 2. Grandchildren (Children of verified biological children)
+            # 2. Grandchildren (Children of verified biological children across dwelling & booth)
+            gc_cands = []
+            if ch_house:
+                cursor.execute("""
+                    SELECT * FROM voters 
+                    WHERE ac_no = ? AND part_no = ? AND house_no = ?
+                """, (ac_no, ch_part, ch_house))
+                gc_cands.extend([dict(r) for r in cursor.fetchall()])
+            
+            # Booth-wide lookup for children of ch
             cursor.execute("""
                 SELECT * FROM voters 
-                WHERE ac_no = ? AND part_no = ? AND house_no = ?
-            """, (ac_no, ch_part, ch_house))
-            for gc in [dict(r) for r in cursor.fetchall()]:
+                WHERE ac_no = ? AND part_no = ? AND (relation_type = 'Father' OR relation_type = 'Mother' OR relation_type IS NULL) AND (? - age) >= 35
+            """, (ac_no, part_no, t_age))
+            seen_gc_ids = {g["id"] for g in gc_cands}
+            for r in cursor.fetchall():
+                rd = dict(r)
+                if rd["id"] not in seen_gc_ids:
+                    seen_gc_ids.add(rd["id"])
+                    gc_cands.append(rd)
+
+            for gc in gc_cands:
                 if gc["id"] in assigned_ids or gc["id"] == target["id"] or gc["id"] == ch["id"]: continue
-                diff_gc = t_age - (gc.get("age") or 0)
-                if diff_gc >= 35:
+                gc_age = gc.get("age") or 0
+                diff_gc = t_age - gc_age
+                diff_ch_gc = (ch.get("age") or 0) - gc_age
+                if diff_gc >= 35 and 14 <= diff_ch_gc <= 50:
                     gc_rel = gc.get("relative_name") or ""
+                    gc_rel_type = (gc.get("relation_type") or "Father").capitalize()
+                    if gc_rel_type == "Husband": continue
                     # Child names son as father or son's wife as mother
                     is_gc_of_son = match_person_names(ch_name, gc_rel, primary_clan)
                     if not is_gc_of_son:
                         son_wives = [w["name"] for w in children_in_law if w.get("spouse_of_id") == ch["id"]]
                         is_gc_of_son = any(match_person_names(w_name, gc_rel, primary_clan) for w_name in son_wives)
                     if is_gc_of_son:
-                        gc["audit_tier"] = "GOLD_SAME_BOOTH_CLUSTER" if gc.get("house_no") != target.get("house_no") else "GOLD_SAME_HOUSEHOLD"
-                        gc["child_of_id"] = ch["id"]
-                        grandchildren.append(gc)
-                        assigned_ids.add(gc["id"])
+                        # Same-house father priority
+                        if ch.get("house_no") and gc.get("house_no") and gc.get("house_no") != ch.get("house_no"):
+                            cursor.execute("""
+                                SELECT * FROM voters 
+                                WHERE ac_no = ? AND part_no = ? AND house_no = ? AND gender = 'M' AND (age - ?) >= 14 AND (age - ?) <= 55
+                            """, (ac_no, part_no, gc.get("house_no"), gc_age, gc_age))
+                            raw_shf = [dict(f) for f in cursor.fetchall()]
+                            alt_fathers = [f for f in raw_shf if f["id"] != ch["id"] and match_person_names(f["name"], gc_rel, primary_clan)]
+                            if alt_fathers:
+                                continue
+                        gc_clan = extract_clan_or_surname(gc["name"])
+                        ch_clan = extract_clan_or_surname(ch["name"])
+                        if ch_clan and gc_clan == ch_clan.lower():
+                            gc["audit_tier"] = "GOLD_SAME_BOOTH_CLUSTER" if gc.get("house_no") != target.get("house_no") else "GOLD_SAME_HOUSEHOLD"
+                            gc["child_of_id"] = ch["id"]
+                            gc["relationship_label"] = "Granddaughter" if gc.get("gender") == "F" else "Grandson"
+                            grandchildren.append(gc)
+                            assigned_ids.add(gc["id"])
 
     # Pass 3.4: Sibling & Mother Resolution for Adult Electors (Reciprocal of Matriarch Lookup)
     fat_obj = next((p for p in parents if p.get("gender") == "M" and not p.get("is_deceased")), None)
@@ -1354,7 +1446,7 @@ def get_voter_family(voter_id: int):
         for b_cand in [dict(r) for r in cursor.fetchall()]:
             if b_cand["id"] in assigned_ids or b_cand["id"] == target["id"]: continue
             diff_b = (b_cand.get("age") or 0) - t_age
-            if abs(diff_b) <= 28 and match_person_names(father_target_ref, b_cand.get("relative_name") or "", primary_clan):
+            if abs(diff_b) <= 36 and match_person_names(father_target_ref, b_cand.get("relative_name") or "", primary_clan):
                 b_age = b_cand.get("age") or 0
                 mom_obj = next((p for p in parents if p.get("gender") == "F" and not p.get("is_deceased")), None)
                 fat_obj = next((p for p in parents if p.get("gender") == "M" and not p.get("is_deceased")), None)
@@ -1492,6 +1584,103 @@ def get_voter_family(voter_id: int):
                 cand["audit_tier"] = "GOLD_SAME_BOOTH_CLUSTER" if cand.get("house_no") != target.get("house_no") else "GOLD_SAME_HOUSEHOLD"
                 nephews_nieces.append(cand)
                 assigned_ids.add(cand["id"])
+
+    # Pass 3.7: Co-Resident Deceased Son / Brother / Uncle Collateral Kinship
+    # Handles joint families where a deceased male of the household clan left behind a widow and children
+    # (e.g. Late Naorem Sunder Singh leaving widow Indira Devi 52y, Gyaneshwari 29y, Ashutosh 21y in House 228)
+    unassigned_cohabitants = [m for m in target_family_cluster if m["id"] not in assigned_ids and m["id"] != target["id"]]
+    if unassigned_cohabitants:
+        deceased_rel_groups = {}
+        for m in unassigned_cohabitants:
+            m_rel = m.get("relative_name") or ""
+            m_rel_clan = extract_clan_or_surname(m_rel)
+            if m_rel and (m_rel_clan == primary_clan or (primary_clan and primary_clan.lower() in m_rel.lower())):
+                clean_rel = re.sub(r'^(late|shri|smt)\s+', '', m_rel, flags=re.I).strip()
+                deceased_rel_groups.setdefault(clean_rel, []).append(m)
+
+        for rel_name, group_members in deceased_rel_groups.items():
+            is_active_in_house = any(m["id"] for m in same_house if match_person_names(m["name"], rel_name, primary_clan))
+            if not is_active_in_house:
+                min_group_age = min(m.get("age") or 30 for m in group_members)
+                max_group_age = max(m.get("age") or 30 for m in group_members)
+                
+                # Case 1: Target is Grandparent Generation (t_age >= 65 and t_age - min_group_age >= 35)
+                if t_age >= 65 and (t_age - min_group_age >= 35):
+                    for gm in group_members:
+                        if gm["id"] in assigned_ids: continue
+                        gm_sex = gm.get("gender")
+                        gm_rel_type = (gm.get("relation_type") or "").capitalize()
+                        if gm_sex == "F" and gm_rel_type == "Husband":
+                            gm["relationship_label"] = f"Daughter-in-Law (Widow of Late {rel_name})"
+                            children_in_law.append(gm)
+                            assigned_ids.add(gm["id"])
+                        elif gm_rel_type in ("Father", "Mother", "Others", "Other"):
+                            gm["relationship_label"] = "Granddaughter" if gm_sex == "F" else "Grandson"
+                            grandchildren.append(gm)
+                            assigned_ids.add(gm["id"])
+
+                # Case 2: Target is Sibling Generation (e.g. Shyam 57y or Bijayani 57y, deceased relative was brother)
+                elif t_age >= 35 and (t_age - min_group_age >= 14) and abs(t_age - max_group_age) <= 25:
+                    for gm in group_members:
+                        if gm["id"] in assigned_ids: continue
+                        gm_sex = gm.get("gender")
+                        gm_rel_type = (gm.get("relation_type") or "").capitalize()
+                        if gm_sex == "F" and gm_rel_type == "Husband":
+                            label = "Sister-in-Law (Widow of Late Brother)" if t_sex == "M" else "Sister-in-Law (Widow of Husband's Late Brother)"
+                            gm["relationship_label"] = label
+                            siblings_spouses.append(gm)
+                            assigned_ids.add(gm["id"])
+                        elif gm_rel_type in ("Father", "Mother", "Others", "Other"):
+                            gm["relationship_label"] = "Niece" if gm_sex == "F" else "Nephew"
+                            nephews_nieces.append(gm)
+                            assigned_ids.add(gm["id"])
+
+                # Case 3: Target is Child Generation (e.g. Donaljit 22y, deceased relative was uncle)
+                elif t_age <= 35 and (max_group_age - t_age >= 14):
+                    for gm in group_members:
+                        if gm["id"] in assigned_ids: continue
+                        gm_sex = gm.get("gender")
+                        gm_rel_type = (gm.get("relation_type") or "").capitalize()
+                        if gm_sex == "F" and gm_rel_type == "Husband":
+                            gm["relationship_label"] = "Paternal Aunt"
+                            uncles_aunts.append(gm)
+                            assigned_ids.add(gm["id"])
+                        elif gm_rel_type in ("Father", "Mother", "Others", "Other"):
+                            gm["relationship_label"] = "Cousin (Sister)" if gm_sex == "F" else "Cousin (Brother)"
+                            cousins.append(gm)
+                            assigned_ids.add(gm["id"])
+
+    # Pass 3.8: Joint Household Elders for Electors whose Father is Deceased (e.g. Ashutosh in H.228)
+    if any(p.get("is_deceased") for p in parents) or not any(p.get("gender") == "M" and not p.get("is_deceased") for p in parents):
+        for m in target_family_cluster:
+            if m["id"] in assigned_ids or m["id"] == target["id"]: continue
+            m_age = m.get("age") or 30
+            m_sex = m.get("gender")
+            diff_m = m_age - t_age
+            # Grandfather in house (diff >= 45)
+            if m_sex == "M" and diff_m >= 45:
+                m["relationship_label"] = "Grandfather"
+                grandparents.append(m)
+                assigned_ids.add(m["id"])
+                # Look for his wife in the house as Grandmother
+                for w in target_family_cluster:
+                    if w["id"] in assigned_ids or w["id"] == target["id"]: continue
+                    if w.get("gender") == "F" and match_person_names(m["name"], w.get("relative_name") or "", primary_clan):
+                        w["relationship_label"] = "Grandmother"
+                        grandparents.append(w)
+                        assigned_ids.add(w["id"])
+            # Paternal Uncle in house (20 <= diff <= 44)
+            elif m_sex == "M" and 20 <= diff_m <= 44:
+                m["relationship_label"] = "Paternal Uncle"
+                uncles_aunts.append(m)
+                assigned_ids.add(m["id"])
+                # Look for his wife in house as Paternal Aunt
+                for w in target_family_cluster:
+                    if w["id"] in assigned_ids or w["id"] == target["id"]: continue
+                    if w.get("gender") == "F" and match_person_names(m["name"], w.get("relative_name") or "", primary_clan):
+                        w["relationship_label"] = "Paternal Aunt"
+                        uncles_aunts.append(w)
+                        assigned_ids.add(w["id"])
 
     # --- PASS 4: Grandparents (Living & Deceased in Compound / Booth) ---
     grandmother_name_refs = set()
@@ -1646,17 +1835,17 @@ def get_voter_family(voter_id: int):
         item["audit_tier"] = m.get("audit_tier") or ("GOLD_SAME_HOUSEHOLD" if m.get("part_no") == target.get("part_no") else "SILVER_SPLIT_BOOTH")
         return item
 
-    formatted_grandparents = [format_member(m, "Grandmother" if m.get("gender") == "F" else "Grandfather") for m in grandparents]
-    formatted_parents = [format_member(m, "Mother" if m.get("gender") == "F" else "Father") for m in parents]
-    formatted_uncles = [format_member(m, "Aunt" if m.get("gender") == "F" else "Uncle") for m in uncles_aunts]
-    formatted_spouses = [format_member(m, "Wife" if m.get("gender") == "F" else "Husband") for m in spouses]
+    formatted_grandparents = [format_member(m, m.get("relationship_label") or ("Grandmother" if m.get("gender") == "F" else "Grandfather")) for m in grandparents]
+    formatted_parents = [format_member(m, m.get("relationship_label") or ("Mother" if m.get("gender") == "F" else "Father")) for m in parents]
+    formatted_uncles = [format_member(m, m.get("relationship_label") or ("Aunt" if m.get("gender") == "F" else "Uncle")) for m in uncles_aunts]
+    formatted_spouses = [format_member(m, m.get("relationship_label") or ("Wife" if m.get("gender") == "F" else "Husband")) for m in spouses]
     formatted_siblings = [format_member(m, m.get("relationship_label") or ("Sister" if m.get("gender") == "F" else "Brother")) for m in siblings]
     formatted_siblings_spouses = [format_member(m, m.get("relationship_label") or ("Sister-in-Law" if m.get("gender") == "F" else "Brother-in-Law")) for m in siblings_spouses]
-    formatted_cousins = [format_member(m, "Cousin Sister" if m.get("gender") == "F" else "Cousin Brother") for m in cousins]
-    formatted_children = [format_member(m, "Daughter" if m.get("gender") == "F" else "Son") for m in children]
-    formatted_children_in_law = [format_member(m, "Daughter-in-Law" if m.get("gender") == "F" else "Son-in-Law") for m in children_in_law]
-    formatted_grandchildren = [format_member(m, "Granddaughter" if m.get("gender") == "F" else "Grandson") for m in grandchildren]
-    formatted_others = [format_member(m, "Household Member") for m in others]
+    formatted_cousins = [format_member(m, m.get("relationship_label") or ("Cousin Sister" if m.get("gender") == "F" else "Cousin Brother")) for m in cousins]
+    formatted_children = [format_member(m, m.get("relationship_label") or ("Daughter" if m.get("gender") == "F" else "Son")) for m in children]
+    formatted_children_in_law = [format_member(m, m.get("relationship_label") or ("Daughter-in-Law" if m.get("gender") == "F" else "Son-in-Law")) for m in children_in_law]
+    formatted_grandchildren = [format_member(m, m.get("relationship_label") or ("Granddaughter" if m.get("gender") == "F" else "Grandson")) for m in grandchildren]
+    formatted_others = [format_member(m, m.get("relationship_label") or "Household Member") for m in others]
 
     # --- PASS 7: Deterministic Ancestral Generation 1 & Generation 2 Fallback ---
     # Guarantees verified ancestral records without synthetic hallucinated placeholders

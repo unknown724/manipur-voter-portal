@@ -663,9 +663,9 @@
 
       <div class="flex flex-wrap items-center justify-end gap-2 pt-2">
         <button onclick="closeModal()" class="px-4 py-2 border border-slate-300 text-slate-700 rounded-xl text-xs font-semibold hover:bg-slate-50 transition">Close</button>
-        <button onclick="openHouseholdMapFromSlip()" class="px-3.5 py-2 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-2xs" title="View Household on ISRO Bhuvan / OSM Map">
+        <button onclick="openHouseholdMapFromSlip()" class="px-3.5 py-2 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-2xs" title="View Designated Polling Station Location on Map">
           <i data-lucide="map-pin" class="w-3.5 h-3.5 text-blue-700"></i>
-          <span>Household Map</span>
+          <span>Polling Booth Map</span>
         </button>
         <button onclick="openFamilyFromSlip()" class="px-3.5 py-2 bg-gradient-to-r from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 text-amber-900 border border-amber-200/80 rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-2xs" title="Explore Kinship & Family Tree for this Elector">
           <i data-lucide="network" class="w-3.5 h-3.5 text-amber-700"></i>
@@ -3420,49 +3420,75 @@
         const boothCoords = [latVal, lngVal];
 
         setTimeout(() => {
-          if (!leafletMapInstance) {
-            leafletMapInstance = L.map('leafletMap', { scrollWheelZoom: false, touchZoom: true }).setView(boothCoords, 16);
-
-            // Layer definitions
-            const osmStandard = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-              maxZoom: 19,
-              attribution: '© OpenStreetMap contributors'
-            });
-
-            const bhuvanSatellite = L.tileLayer.wms('https://bhuvan-vec1.nrsc.gov.in/bhuvan/wms', {
-              layers: 'bhuvan_imagery2',
-              format: 'image/jpeg',
-              transparent: false,
-              version: '1.1.1',
-              maxZoom: 19,
-              attribution: '© ISRO / NRSC Bhuvan'
-            });
-
-            const esriSatellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-              maxZoom: 19,
-              attribution: 'Tiles © Esri'
-            });
-
-            osmStandard.addTo(leafletMapInstance);
-
-            const baseMaps = {
-              "🗺️ OpenStreetMap": osmStandard,
-              "🛰️ ISRO Bhuvan (WMS)": bhuvanSatellite,
-              "🌐 Esri High-Res Satellite": esriSatellite
-            };
-
-            mapTileLayerControl = L.control.layers(baseMaps, null, { position: 'topright' }).addTo(leafletMapInstance);
-          } else {
-            leafletMapInstance.setView(boothCoords, 16);
-            leafletMapInstance.invalidateSize();
+          if (typeof L === 'undefined') {
+            const mapEl = document.getElementById('leafletMap');
+            if (mapEl) {
+              mapEl.innerHTML = `
+                <div class="h-full w-full flex flex-col items-center justify-center p-6 bg-slate-50 border border-slate-200 text-center">
+                  <div class="w-14 h-14 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center mb-3 shadow-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+                  </div>
+                  <h4 class="text-base font-bold text-slate-800">${ps.building_name || ps.name || h.polling_station_name}</h4>
+                  <p class="text-xs text-slate-600 font-mono mt-1 font-semibold">${coordsStr}</p>
+                  <p class="text-xs text-slate-500 mt-0.5">Designated Booth #${ps.part_no || h.part_no} • ${ps.locality || h.section_name}</p>
+                  <div class="mt-4 flex gap-2">
+                    <a href="${gmapsLink}" target="_blank" rel="noopener noreferrer" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md transition">
+                      Open in Google Maps ↗
+                    </a>
+                  </div>
+                </div>
+              `;
+            }
+            return;
           }
 
-          // Clear existing markers & polylines
-          leafletMapInstance.eachLayer(layer => {
-            if (layer instanceof L.Marker || layer instanceof L.Polyline) {
-              leafletMapInstance.removeLayer(layer);
+          try {
+            if (!leafletMapInstance) {
+              leafletMapInstance = L.map('leafletMap', { scrollWheelZoom: false, touchZoom: true }).setView(boothCoords, 16);
+
+              // Layer definitions
+              const osmStandard = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '© OpenStreetMap contributors'
+              });
+
+              const bhuvanSatellite = L.tileLayer.wms('https://bhuvan-vec1.nrsc.gov.in/bhuvan/wms', {
+                layers: 'bhuvan_imagery2',
+                format: 'image/jpeg',
+                transparent: false,
+                version: '1.1.1',
+                maxZoom: 19,
+                attribution: '© ISRO / NRSC Bhuvan'
+              });
+
+              const esriSatellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                maxZoom: 19,
+                attribution: 'Tiles © Esri'
+              });
+
+              osmStandard.addTo(leafletMapInstance);
+
+              const baseMaps = {
+                "🗺️ OpenStreetMap": osmStandard,
+                "🛰️ ISRO Bhuvan (WMS)": bhuvanSatellite,
+                "🌐 Esri High-Res Satellite": esriSatellite
+              };
+
+              mapTileLayerControl = L.control.layers(baseMaps, null, { position: 'topright' }).addTo(leafletMapInstance);
+            } else {
+              leafletMapInstance.setView(boothCoords, 16);
+              leafletMapInstance.invalidateSize();
             }
-          });
+
+            // Clear existing markers & polylines
+            leafletMapInstance.eachLayer(layer => {
+              if (layer instanceof L.Marker || layer instanceof L.Polyline) {
+                leafletMapInstance.removeLayer(layer);
+              }
+            });
+          } catch (mapInitErr) {
+            console.warn("Leaflet map initialization warning:", mapInitErr);
+          }
 
           // Single Authoritative Designated Polling Station Marker
           const boothIcon = L.divIcon({
