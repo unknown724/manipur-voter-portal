@@ -1,0 +1,19 @@
+{
+  "name": "manipur-voter-analytics",
+  "version": "1.0.0",
+  "description": "Manipur Voter Search, Demographics & Multi-Generational Kinship Analytics Platform",
+  "scripts": {
+    "dev": "python -m uvicorn server:app --host 127.0.0.1 --port 8000 --reload",
+    "start": "python -m uvicorn server:app --host 127.0.0.1 --port 8000",
+    "serve": "python -m uvicorn server:app --host 127.0.0.1 --port 8000 --reload"
+  },
+  "keywords": [
+    "manipur",
+    "electoral-roll",
+    "voter-search",
+    "kinship-graph",
+    "fastapi"
+  ],
+  "author": "Richard Konsam",
+  "license": "MIT"
+}

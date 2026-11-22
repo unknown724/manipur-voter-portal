@@ -1,0 +1,30 @@
+# Database & Large Data
+voters.db
+*.db-journal
+*.sqlite3
+uploads/
+
+# Python & Virtual Environments
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+*.egg-info/
+dist/
+build/
+
+# Environment, Secrets & IDE
+.env
+.env.*
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Temporary test and logs
+scratch/
+temp_eroll.html
+_temp_test_*.js
+*.log

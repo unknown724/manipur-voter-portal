@@ -1,0 +1,51 @@
+{
+  "project": "Manipur Electoral Intelligence Platform",
+  "version": "2.0.0",
+  "ralph_loop_config": {
+    "max_iterations": 10,
+    "test_command": "python -m py_compile server.py",
+    "git_auto_commit": true
+  },
+  "tasks": [
+    {
+      "id": "TASK-01",
+      "title": "Decouple Monolithic Frontend into Modular ES Modules",
+      "description": "Refactor static/index.html by extracting reusable modules into static/js/modules/ (api.js, family_tree.js, maps.js, print_engine.js) to improve maintainability and load times.",
+      "priority": "P1",
+      "status": "pending",
+      "verification": "node --check static/js/modules/*.js"
+    },
+    {
+      "id": "TASK-02",
+      "title": "SQLite Composite Indexing for Sub-10ms Searches",
+      "description": "Analyze query performance across the 1,994,357 records in voters.db and apply optimal composite B-Tree indexes on (ac_no, part_no, house_no), (epic_no), and (relative_name).",
+      "priority": "P1",
+      "status": "pending",
+      "verification": "python -c 'import sqlite3; conn=sqlite3.connect(\"voters.db\"); print(conn.execute(\"EXPLAIN QUERY PLAN SELECT * FROM voters WHERE ac_no=15 AND part_no=42\").fetchall())'"
+    },
+    {
+      "id": "TASK-03",
+      "title": "Automated Multi-Generational Kinship Test Suite",
+      "description": "Develop tests/test_kinship.py containing unit tests for biological parent gender checks, spouse matching, sibling clustering, and multi-generational descent trees.",
+      "priority": "P1",
+      "status": "pending",
+      "verification": "python -m unittest discover tests/"
+    },
+    {
+      "id": "TASK-04",
+      "title": "Client-Side DOM Sanitization & XSS Hardening",
+      "description": "Audit all dynamic innerHTML interpolations in the frontend to ensure all voter names, relative names, and addresses are strictly attribute-escaped before insertion.",
+      "priority": "P2",
+      "status": "pending",
+      "verification": "python -m unittest tests/test_security.py"
+    },
+    {
+      "id": "TASK-05",
+      "title": "Progressive Web App (PWA) Offline Polling Station Cache",
+      "description": "Implement service worker (sw.js) and manifest.json so BLOS and election workers can access previously loaded polling station maps and household slips without active 4G/5G signal.",
+      "priority": "P2",
+      "status": "pending",
+      "verification": "node --check static/sw.js"
+    }
+  ]
+}

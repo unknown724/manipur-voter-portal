@@ -1,0 +1,22 @@
+# CodeRabbit Configuration File
+# https://docs.coderabbit.ai/guides/configure-coderabbit
+version: "2"
+language: "en-US"
+tone_instructions: "You are a senior full-stack and electoral systems engineer. Be concise, actionable, and prioritize security, SQLite query performance on 1.99M records, zero mock data policy, and responsive UI accessibility."
+reviews:
+  profile: "chill"
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: false
+  auto_review:
+    enabled: true
+    drafts: false
+  path_instructions:
+    - path: "server.py"
+      instructions: "Ensure FastAPI endpoints properly sanitize inputs, validate biological gender in kinship algorithms, maintain SQLite connection safety, and avoid unindexed full table scans."
+    - path: "static/index.html"
+      instructions: "Ensure DOM manipulation escapes voter parameters, avoids memory leaks in event listeners, maintains responsive layouts across mobile and desktop, and supports isolated print layouts."
+chat:
+  auto_reply: true

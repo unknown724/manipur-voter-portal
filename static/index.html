@@ -1,0 +1,3683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manipur Voter Search Portal | 100% Free & Open Source</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Google Fonts: Inter -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Leaflet CSS & JS for Interactive Geo-Mapping -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- QRCode.js for Official Scannable ECI Voter Slips & Phone Hand-off -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <!-- html2canvas for High-Res PNG Pedigree & Voter Slip Export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    #leafletMap { height: 380px; width: 100%; border-radius: 0.75rem; z-index: 10; }
+    @media (max-width: 640px) {
+      #leafletMap { height: 260px; }
+    }
+    @media print {
+      @page {
+        size: A4 portrait;
+        margin: 10mm;
+      }
+      html, body {
+        height: auto !important;
+        overflow: visible !important;
+        background: #ffffff !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+      /* Remove all background app UI entirely from print layout */
+      header, section, main, footer, nav, .modal-backdrop, #mapModal, #phoneQrModal, #acDetailModal, #rapidProgressModal, #view-search, #view-constituencies, #view-rapid, #view-upload, #voterResultsGrid, #constituenciesTable {
+        display: none !important;
+      }
+      body > div:not(#voterModal):not(#householdSlipModal) {
+        display: none !important;
+      }
+      #printableSlip, #printableHouseholdSlip {
+        position: static !important;
+        width: 100% !important;
+        border: 2px solid #0f172a !important;
+        border-radius: 8px !important;
+        background: white !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+        padding: 16px !important;
+        box-shadow: none !important;
+      }
+      button, a, .no-print, [onclick] {
+        display: none !important;
+      }
+    }
+    /* Pedigree Tree Visual Styles (Matching Image) */
+    .pedigree-container {
+      background-color: #f8fafc;
+      background-image: radial-gradient(#cbd5e1 1.2px, transparent 1.2px);
+      background-size: 20px 20px;
+      border: 1px solid #e2e8f0;
+      border-radius: 1rem;
+      position: relative;
+      overflow-x: auto;
+      overflow-y: auto;
+      max-height: 65vh;
+      min-height: 380px;
+      padding: 24px 16px;
+      touch-action: pan-x pan-y;
+      -webkit-overflow-scrolling: touch;
+      cursor: grab;
+      user-select: none;
+      display: flex;
+      justify-content: safe center;
+    }
+    .pedigree-container:active {
+      cursor: grabbing;
+    }
+    .pedigree-canvas {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      transform-origin: top center;
+      transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      width: max-content;
+      min-width: 100%;
+      position: relative;
+    }
+    .pedigree-row {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+    }
+    .pedigree-couple-box {
+      display: inline-flex;
+      align-items: flex-start;
+      gap: 18px;
+      position: relative;
+      padding: 8px 16px;
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 9999px;
+      border: 1.5px dashed #cbd5e1;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    }
+    .pedigree-couple-line {
+      position: absolute;
+      top: 38px;
+      left: 45px;
+      right: 45px;
+      height: 2px;
+      background-color: #94a3b8;
+      z-index: 0;
+    }
+    .pedigree-couple-badge {
+      position: absolute;
+      left: 50%;
+      top: 38px;
+      transform: translate(-50%, -50%);
+      background: white;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 9999px;
+      padding: 1px 6px;
+      font-size: 11px;
+      z-index: 10;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .pedigree-drop-stem {
+      width: 2px;
+      height: 26px;
+      background-color: #94a3b8;
+      margin: 0 auto;
+    }
+    .pedigree-branch-bar {
+      height: 2px;
+      background-color: #94a3b8;
+      margin: 0 auto;
+      position: relative;
+    }
+    .pedigree-node-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      min-width: 120px;
+      max-width: 160px;
+      width: auto;
+      position: relative;
+      z-index: 5;
+    }
+    .pedigree-avatar-circle {
+      width: 58px;
+      height: 58px;
+      border-radius: 9999px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 8px -2px rgba(0,0,0,0.08);
+      position: relative;
+      background: white;
+      transition: transform 0.15s ease;
+    }
+    .pedigree-node-card:hover .pedigree-avatar-circle {
+      transform: scale(1.06);
+    }
+
+    /* Mobile Responsive Optimizations */
+    @media (max-width: 640px) {
+      .pedigree-container {
+        padding: 10px 4px;
+        min-height: 280px;
+        max-height: 58vh;
+        overflow-x: auto;
+      }
+      .pedigree-node-card {
+        min-width: 105px;
+        max-width: 145px;
+        width: auto;
+      }
+      .pedigree-avatar-circle {
+        width: 48px;
+        height: 48px;
+      }
+      .pedigree-avatar-circle svg {
+        width: 24px;
+        height: 24px;
+      }
+      .pedigree-couple-box {
+        gap: 8px;
+        padding: 4px 8px;
+      }
+      .pedigree-couple-line {
+        top: 28px;
+        left: 28px;
+        right: 28px;
+      }
+      .pedigree-couple-badge {
+        top: 28px;
+        font-size: 9px;
+        padding: 0 4px;
+      }
+      .pedigree-drop-stem {
+        height: 18px;
+      }
+    }
+    /* Hide scrollbars for slick mobile horizontal scrolling */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+  <!-- Top Navigation Bar -->
+  <header class="bg-gradient-to-r from-emerald-800 via-teal-700 to-cyan-800 text-white shadow-lg sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16">
+        <!-- Logo / Title -->
+        <div class="flex items-center space-x-3 cursor-pointer" onclick="switchTab('search')">
+          <div class="bg-white/10 p-2 rounded-xl backdrop-blur-sm border border-white/20">
+            <i data-lucide="vote" class="w-7 h-7 text-amber-300"></i>
+          </div>
+          <div>
+            <h1 class="text-lg sm:text-xl font-bold tracking-tight flex items-center gap-2">
+              Manipur Voter Portal
+              <span class="text-xs bg-emerald-500/30 text-emerald-200 border border-emerald-400/40 px-2 py-0.5 rounded-full font-medium">Free & FOSS</span>
+            </h1>
+            <p class="text-xs text-emerald-100 hidden sm:block">Electoral Roll Database & Constituency Search</p>
+          </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="flex items-center gap-2">
+          <nav class="flex space-x-1 sm:space-x-2">
+            <button onclick="switchTab('search')" id="tabBtn-search" class="nav-tab px-3 py-2 rounded-lg text-sm font-medium transition flex items-center gap-1.5 bg-white/20 text-white">
+              <i data-lucide="search" class="w-4 h-4"></i>
+              <span>Search Voters</span>
+            </button>
+            <button onclick="switchTab('constituencies')" id="tabBtn-constituencies" class="nav-tab px-3 py-2 rounded-lg text-sm font-medium transition flex items-center gap-1.5 text-emerald-100 hover:bg-white/10">
+              <i data-lucide="landmark" class="w-4 h-4"></i>
+              <span>Constituencies (60)</span>
+            </button>
+            <button onclick="switchTab('rapid')" id="tabBtn-rapid" class="nav-tab px-3 py-2 rounded-lg text-sm font-medium transition flex items-center gap-1.5 text-amber-200 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-300/30">
+              <i data-lucide="zap" class="w-4 h-4 text-amber-300"></i>
+              <span>⚡ Rapid Downloader</span>
+            </button>
+            <button onclick="switchTab('upload')" id="tabBtn-upload" class="nav-tab px-3 py-2 rounded-lg text-sm font-medium transition flex items-center gap-1.5 text-emerald-100 hover:bg-white/10">
+              <i data-lucide="file-up" class="w-4 h-4"></i>
+              <span>Import PDF</span>
+            </button>
+          </nav>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Live Stats Bar (With Third Gender / Transgender Total) -->
+  <section class="bg-white border-b border-slate-200 shadow-sm py-3">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-center">
+      <div class="p-2 border-r border-slate-100 last:border-0">
+        <p class="text-xs text-slate-500 font-medium uppercase tracking-wider">Total Voters</p>
+        <p id="stat-total-voters" class="text-xl font-bold text-slate-800">Loading...</p>
+        <span id="stat-active-deleted" class="text-[10px] text-slate-400 block font-normal mt-0.5">--</span>
+      </div>
+      <div class="p-2 border-r border-slate-100 last:border-0">
+        <p class="text-xs text-slate-500 font-medium uppercase tracking-wider">Constituencies</p>
+        <p id="stat-total-acs" class="text-xl font-bold text-emerald-600">60 ACs</p>
+      </div>
+      <div class="p-2 border-r border-slate-100 last:border-0">
+        <p class="text-xs text-slate-500 font-medium uppercase tracking-wider">Male Electors</p>
+        <p id="stat-male-voters" class="text-xl font-bold text-blue-600">--</p>
+      </div>
+      <div class="p-2 border-r border-slate-100 last:border-0">
+        <p class="text-xs text-slate-500 font-medium uppercase tracking-wider">Female Electors</p>
+        <p id="stat-female-voters" class="text-xl font-bold text-pink-600">--</p>
+      </div>
+      <div class="p-2 border-r border-slate-100 last:border-0">
+        <p class="text-xs text-slate-500 font-medium uppercase tracking-wider">Third Gender (TG)</p>
+        <p id="stat-other-voters" class="text-xl font-bold text-purple-600">--</p>
+      </div>
+      <div class="p-2">
+        <p class="text-xs text-slate-500 font-medium uppercase tracking-wider">Average Age</p>
+        <p id="stat-avg-age" class="text-xl font-bold text-amber-600">--</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Main Content Container -->
+  <main class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 flex-1 w-full pb-24 sm:pb-8">
+
+    <!-- TAB 1: VOTER SEARCH -->
+    <div id="view-search" class="space-y-6">
+      
+      <!-- Search Box Card -->
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-6">
+        <div class="grid grid-cols-2 md:grid-cols-12 gap-3 sm:gap-4">
+          <!-- Text Search Query -->
+          <div class="col-span-2 md:col-span-5">
+            <div class="flex items-center justify-between mb-1">
+              <label class="block text-xs font-semibold text-slate-600 uppercase">Search Name, Relative, or EPIC No</label>
+              <span class="text-[10px] text-slate-400 font-mono hidden sm:inline">Press <kbd class="px-1 py-0.5 bg-slate-100 border border-slate-300 rounded text-[9px]">Ctrl+K</kbd> or <kbd class="px-1 py-0.5 bg-slate-100 border border-slate-300 rounded text-[9px]">/</kbd></span>
+            </div>
+            <div class="relative">
+              <input type="text" id="searchQuery" placeholder="e.g. Konsam, Devananda, Linthoingambi, or MNC01..."
+                     class="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-base sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none transition"
+                     autocomplete="off"
+                     onfocus="handleSearchFocus()"
+                     oninput="handleSearchQueryInput(this.value)"
+                     onkeydown="handleSearchQueryKeyDown(event)">
+              <i data-lucide="search" class="w-5 h-5 text-slate-400 absolute left-3 top-3"></i>
+              <button id="searchClearBtn" type="button" onclick="clearSearchQueryInput()"
+                      class="hidden absolute right-3 top-2.5 text-slate-400 hover:text-slate-700 p-1 rounded-full hover:bg-slate-200 transition"
+                      title="Clear search text">
+                <i data-lucide="x" class="w-4 h-4"></i>
+              </button>
+              
+              <!-- Floating Google-Style Auto-Suggestion Dropdown -->
+              <div id="searchSuggestionsBox" 
+                   class="hidden absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden divide-y divide-slate-100 max-h-84 overflow-y-auto">
+              </div>
+
+              <!-- Floating Recent Searches Dropdown -->
+              <div id="recentSearchesBox" 
+                   class="hidden absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-2xl z-40 overflow-hidden p-2">
+              </div>
+            </div>
+          </div>
+
+          <!-- Constituency Filter -->
+          <div class="col-span-2 sm:col-span-1 md:col-span-3">
+            <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Constituency</label>
+            <select id="filterAC" class="w-full py-2.5 px-3 bg-slate-50 border border-slate-300 rounded-xl text-base sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none transition" onchange="executeSearch(1)">
+              <option value="">All 60 Constituencies</option>
+            </select>
+          </div>
+
+          <!-- Gender Filter -->
+          <div class="col-span-1 md:col-span-2">
+            <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Gender</label>
+            <select id="filterGender" class="w-full py-2.5 px-3 bg-slate-50 border border-slate-300 rounded-xl text-base sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none transition" onchange="executeSearch(1)">
+              <option value="">All Genders</option>
+              <option value="M">Male</option>
+              <option value="F">Female</option>
+              <option value="O">Third Gender</option>
+            </select>
+          </div>
+
+          <!-- Age Bracket Filter -->
+          <div class="col-span-1 md:col-span-2">
+            <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Age Bracket</label>
+            <select id="filterAgeBracket" class="w-full py-2.5 px-3 bg-slate-50 border border-slate-300 rounded-xl text-base sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none transition" onchange="handleAgeBracketChange(this.value)">
+              <option value="">All Ages (18-100+)</option>
+              <option value="18-25">18–25 (Youth / Gen Z)</option>
+              <option value="26-39">26–39 (Young Working)</option>
+              <option value="40-59">40–59 (Household Heads)</option>
+              <option value="60-120">60+ (Senior Citizens)</option>
+            </select>
+          </div>
+
+          <!-- Search Action Button -->
+          <div class="col-span-2 md:col-span-12 flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100">
+            <!-- Age Slider Range Inputs -->
+            <div class="flex items-center gap-2 text-xs">
+              <span class="text-slate-500 font-semibold uppercase">Custom Age:</span>
+              <input type="number" id="filterMinAge" min="18" max="120" placeholder="Min" class="w-14 sm:w-16 py-1 px-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-center focus:ring-1 focus:ring-emerald-500" onchange="executeSearch(1)">
+              <span class="text-slate-400">to</span>
+              <input type="number" id="filterMaxAge" min="18" max="120" placeholder="Max" class="w-14 sm:w-16 py-1 px-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-center focus:ring-1 focus:ring-emerald-500" onchange="executeSearch(1)">
+              
+              <!-- Quick Age Bracket Pills -->
+              <div class="hidden sm:flex items-center gap-1.5 ml-2">
+                <button type="button" onclick="setAgeBracket(18, 25)" class="px-2 py-0.5 rounded-full text-[11px] bg-slate-100 hover:bg-emerald-100 hover:text-emerald-800 transition">18-25</button>
+                <button type="button" onclick="setAgeBracket(26, 39)" class="px-2 py-0.5 rounded-full text-[11px] bg-slate-100 hover:bg-emerald-100 hover:text-emerald-800 transition">26-39</button>
+                <button type="button" onclick="setAgeBracket(40, 59)" class="px-2 py-0.5 rounded-full text-[11px] bg-slate-100 hover:bg-emerald-100 hover:text-emerald-800 transition">40-59</button>
+                <button type="button" onclick="setAgeBracket(60, 120)" class="px-2 py-0.5 rounded-full text-[11px] bg-slate-100 hover:bg-emerald-100 hover:text-emerald-800 transition">60+</button>
+                <button type="button" onclick="setAgeBracket('', '')" class="px-2 py-0.5 rounded-full text-[11px] text-slate-400 hover:text-slate-600 transition">Reset</button>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+              <button onclick="clearSearchFilters()" class="px-3.5 py-2 border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-semibold rounded-xl transition">
+                Clear Filters
+              </button>
+              <button onclick="executeSearch(1)" class="flex-1 sm:flex-initial px-6 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-semibold text-xs rounded-xl shadow transition flex items-center justify-center gap-1.5">
+                <i data-lucide="search" class="w-3.5 h-3.5"></i>
+                <span>Search Voters</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick filter tags -->
+        <div class="mt-3 flex items-center gap-2 text-xs text-slate-500 overflow-x-auto no-scrollbar py-1">
+          <span class="font-medium shrink-0">Quick:</span>
+          <button onclick="setQuickSearch('Konsam')" class="shrink-0 px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full transition">Konsam</button>
+          <button onclick="setQuickSearch('Devananda')" class="shrink-0 px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full transition">Devananda</button>
+          <button onclick="setQuickSearch('Ningthem')" class="shrink-0 px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full transition">Ningthem</button>
+          <button onclick="setQuickSearch('Linthoingambi')" class="shrink-0 px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full transition">Linthoingambi</button>
+          <button onclick="setQuickSearch('Haokip')" class="shrink-0 px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full transition">Haokip</button>
+          <button onclick="setQuickSearch('Shimray')" class="shrink-0 px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full transition">Shimray</button>
+          <button onclick="clearSearchFilters()" class="shrink-0 text-rose-600 hover:underline ml-1">Clear</button>
+        </div>
+      </div>
+
+      <!-- Search Results Header -->
+      <div class="flex items-center justify-between">
+        <p id="searchSummary" class="text-sm text-slate-600 font-medium">Displaying registered voters...</p>
+        <div id="paginationControls" class="flex items-center space-x-2"></div>
+      </div>
+
+      <!-- Results Grid -->
+      <div id="voterResultsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- Rendered dynamically -->
+      </div>
+    </div>
+
+    <!-- TAB 2: CONSTITUENCIES EXPLORER -->
+    <div id="view-constituencies" class="hidden space-y-6">
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+          <div>
+            <h2 class="text-xl font-bold text-slate-800">Manipur Legislative Assembly Constituencies</h2>
+            <p class="text-sm text-slate-500">Explore voter demographics and polling stations across all 60 ACs</p>
+          </div>
+          <div class="w-full sm:w-64">
+            <input type="text" id="filterAcInput" placeholder="Filter by AC name or district..."
+                   class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                   oninput="renderConstituenciesList()">
+          </div>
+        </div>
+
+        <!-- Table of ACs -->
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm text-slate-600">
+            <thead class="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
+              <tr>
+                <th class="py-3 px-4">AC #</th>
+                <th class="py-3 px-4">Constituency Name</th>
+                <th class="py-3 px-4">District</th>
+                <th class="py-3 px-4 text-right">Total Voters</th>
+                <th class="py-3 px-4 text-center">Male / Female / Third Gender</th>
+                <th class="py-3 px-4 text-center">Polling Booths</th>
+                <th class="py-3 px-4 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody id="constituenciesTableBody" class="divide-y divide-slate-100">
+              <!-- Rendered dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: RAPID DOWNLOADER ASSISTANT -->
+    <div id="view-rapid" class="hidden space-y-6">
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 max-w-2xl mx-auto">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-100 mb-4 gap-3">
+          <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center">
+              <i data-lucide="zap" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <h2 class="text-lg font-bold text-slate-800">Manipur Rapid Downloader</h2>
+              <p class="text-xs text-slate-500">Auto-organizes PDFs into AC subfolders & indexes into SQLite</p>
+            </div>
+          </div>
+          
+          <!-- Constituency Selector Dropdown -->
+          <div class="w-full sm:w-60">
+            <label class="block text-[11px] font-semibold text-slate-500 uppercase mb-0.5">Select Constituency</label>
+            <select id="rapidAcSelect" class="w-full py-1.5 px-3 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-emerald-500 focus:outline-none" onchange="changeRapidAc(this.value)">
+              <!-- Populated dynamically with 60 ACs -->
+            </select>
+          </div>
+        </div>
+
+        <!-- Progress Bar -->
+        <div class="space-y-1 mb-6">
+          <div class="flex justify-between text-xs text-slate-500 font-medium">
+            <span>Progress: <strong id="rapidProgressText" class="text-slate-800">Loading parts...</strong></span>
+            <span id="rapidPercent">0%</span>
+          </div>
+          <div class="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+            <div id="rapidProgressBar" class="bg-emerald-500 h-2.5 rounded-full transition-all duration-300" style="width: 0%;"></div>
+          </div>
+        </div>
+
+        <!-- Active Downloader Box -->
+        <div id="rapidActiveBox" class="bg-slate-50 border border-slate-200 rounded-xl p-5 space-y-4">
+          <div class="flex justify-between items-center">
+            <div>
+              <p class="text-xs uppercase font-bold text-slate-400">Current Polling Station</p>
+              <h3 id="rapidCurrentTarget" class="text-base font-bold text-slate-800">Part 1 of --</h3>
+              <p id="rapidBoothDetail" class="text-xs text-slate-500 mt-0.5">Loading booth name...</p>
+            </div>
+            <button onclick="loadRapidCaptcha()" class="text-xs text-emerald-700 hover:text-emerald-800 font-medium flex items-center gap-1">
+              <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+              <span>Refresh CAPTCHA</span>
+            </button>
+          </div>
+
+          <!-- CAPTCHA Display -->
+          <div class="flex flex-col sm:flex-row items-center justify-center gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-inner">
+            <div class="relative bg-slate-100 p-2 rounded-lg border border-slate-200 min-w-[140px] min-h-[50px] flex items-center justify-center">
+              <img id="rapidCaptchaImg" src="" alt="CAPTCHA Image" class="h-10 rounded">
+            </div>
+            <div class="w-full sm:w-auto flex-1 max-w-xs">
+              <label class="block text-xs text-slate-500 mb-1 font-medium">Enter letters shown above:</label>
+              <input type="text" id="rapidCaptchaInput" placeholder="Type CAPTCHA"
+                     autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false"
+                     class="w-full px-3 py-2 text-center text-lg font-mono font-bold tracking-widest uppercase border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                     onkeydown="if(event.key === 'Enter') submitRapidCaptcha()">
+            </div>
+          </div>
+
+          <!-- Submit Button -->
+          <button id="rapidSubmitBtn" onclick="submitRapidCaptcha()" class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-semibold rounded-xl shadow transition flex items-center justify-center gap-2">
+            <i data-lucide="download" class="w-4 h-4"></i>
+            <span>Submit & Download Part (Enter)</span>
+          </button>
+        </div>
+
+        <!-- All Complete State -->
+        <div id="rapidCompleteBox" class="hidden text-center py-8 space-y-3 bg-emerald-50 rounded-xl border border-emerald-200 p-6">
+          <div class="w-12 h-12 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center mx-auto">
+            <i data-lucide="check-circle" class="w-6 h-6"></i>
+          </div>
+          <h3 id="rapidCompleteTitle" class="text-lg font-bold text-emerald-900">All Parts Completed!</h3>
+          <p id="rapidCompleteDesc" class="text-xs text-emerald-700">Every polling station roll has been saved to its dedicated subfolder and indexed into SQLite.</p>
+          <button onclick="switchTab('search')" class="px-4 py-2 bg-emerald-600 text-white text-xs font-semibold rounded-lg shadow hover:bg-emerald-700">
+            Search Electors in This AC
+          </button>
+        </div>
+
+        <!-- Status log -->
+        <div id="rapidStatusLog" class="mt-4 p-3 bg-slate-100 rounded-xl text-xs text-slate-600 max-h-32 overflow-y-auto space-y-1">
+          <p class="text-slate-400">Activity status will appear here...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: PDF ELECTORAL ROLL IMPORT -->
+    <div id="view-upload" class="hidden space-y-6">
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 max-w-3xl mx-auto">
+        <div class="text-center space-y-2 mb-6">
+          <div class="w-12 h-12 bg-emerald-100 text-emerald-700 rounded-2xl flex items-center justify-center mx-auto">
+            <i data-lucide="file-text" class="w-6 h-6"></i>
+          </div>
+          <h2 class="text-xl font-bold text-slate-800">Import CEO Manipur Electoral Roll PDF</h2>
+          <p class="text-sm text-slate-500">Upload official PDF rolls downloaded from ceomanipur.nic.in to ingest into your local searchable database.</p>
+        </div>
+
+        <!-- Upload Drop Zone -->
+        <div id="dropZone" class="border-2 border-dashed border-emerald-300 hover:border-emerald-500 rounded-2xl p-8 text-center bg-emerald-50/40 cursor-pointer transition"
+             onclick="document.getElementById('pdfFileInput').click()">
+          <input type="file" id="pdfFileInput" accept=".pdf" class="hidden" onchange="handleFileSelected(this.files[0])">
+          <i data-lucide="upload-cloud" class="w-12 h-12 text-emerald-600 mx-auto mb-3"></i>
+          <p class="text-sm font-semibold text-slate-700">Click to select or drag and drop Electoral Roll PDF</p>
+          <p class="text-xs text-slate-500 mt-1">Accepts standard ECI PDF format (Mother roll / Draft roll)</p>
+        </div>
+
+        <div id="uploadStatus" class="mt-4 hidden p-4 rounded-xl text-sm"></div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- MODAL: VOTER SLIP / DETAILS -->
+  <div id="voterModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-4 relative border border-slate-200">
+      <button onclick="closeModal()" class="absolute right-4 top-4 text-slate-400 hover:text-slate-600">
+        <i data-lucide="x" class="w-6 h-6"></i>
+      </button>
+
+      <!-- Slip Header -->
+      <div id="printableSlip" class="space-y-4 p-4 border border-slate-300 rounded-xl bg-amber-50/20">
+        <div class="flex items-start justify-between border-b border-dashed border-slate-300 pb-3 gap-2">
+          <div class="space-y-0.5">
+            <p class="text-xs font-bold uppercase tracking-widest text-emerald-800">Election Commission of India</p>
+            <h3 class="text-lg font-bold text-slate-800">Voter Information Slip</h3>
+            <p class="text-xs text-slate-500">General Election / Electoral Roll Search</p>
+          </div>
+          <!-- 2D Scannable QR Code -->
+          <div id="slip-qrcode" class="shrink-0 w-20 h-20 bg-white border border-slate-300 rounded-lg p-1 flex items-center justify-center shadow-xs" title="Official Scannable ECI 2D QR Code"></div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 text-xs">
+          <div>
+            <span class="text-slate-400 font-medium block">EPIC / Voter ID</span>
+            <span id="slip-epic" class="font-bold text-sm text-emerald-700 font-mono">--</span>
+          </div>
+          <div>
+            <span class="text-slate-400 font-medium block">Assembly Constituency</span>
+            <span id="slip-ac" class="font-semibold text-slate-800">--</span>
+          </div>
+          <div class="col-span-2">
+            <span class="text-slate-400 font-medium block">Elector's Name</span>
+            <span id="slip-name" class="font-bold text-base text-slate-900">--</span>
+          </div>
+          <div>
+            <span id="slip-reltype-label" class="text-slate-400 font-medium block">Father's Name</span>
+            <span id="slip-relname" class="font-semibold text-slate-800">--</span>
+          </div>
+          <div>
+            <span class="text-slate-400 font-medium block">Age & Gender</span>
+            <span id="slip-demog" class="font-semibold text-slate-800">--</span>
+          </div>
+          <div>
+            <span class="text-slate-400 font-medium block">House No.</span>
+            <span id="slip-house" class="font-semibold text-slate-800">--</span>
+          </div>
+          <div>
+            <span class="text-slate-400 font-medium block">Part / Booth No.</span>
+            <span id="slip-part" class="font-semibold text-slate-800">--</span>
+          </div>
+          <div class="col-span-2">
+            <span class="text-slate-400 font-medium block">Polling Station Location</span>
+            <span id="slip-ps" class="font-semibold text-slate-800">--</span>
+          </div>
+        </div>
+
+        <div class="pt-2 border-t border-dashed border-slate-300 text-center text-[10px] text-slate-400">
+          * This slip is generated for information purposes. Carry an approved photo identity document to vote.
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center justify-end gap-2 pt-2">
+        <button onclick="closeModal()" class="px-4 py-2 border border-slate-300 text-slate-700 rounded-xl text-xs font-semibold hover:bg-slate-50 transition">Close</button>
+        <button onclick="openHouseholdMapFromSlip()" class="px-3.5 py-2 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-2xs" title="View Household on ISRO Bhuvan / OSM Map">
+          <i data-lucide="map-pin" class="w-3.5 h-3.5 text-blue-700"></i>
+          <span>Household Map</span>
+        </button>
+        <button onclick="openFamilyFromSlip()" class="px-3.5 py-2 bg-gradient-to-r from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 text-amber-900 border border-amber-200/80 rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-2xs" title="Explore Kinship & Family Tree for this Elector">
+          <i data-lucide="network" class="w-3.5 h-3.5 text-amber-700"></i>
+          <span>Family Tree</span>
+        </button>
+        <button onclick="shareActiveVoterSlip()" class="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition border border-emerald-200">
+          <i data-lucide="share-2" class="w-3.5 h-3.5 text-emerald-700"></i>
+          <span>Share WhatsApp</span>
+        </button>
+        <button onclick="printActiveVoterSlipIsolated()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow transition">
+          <i data-lucide="printer" class="w-3.5 h-3.5"></i>
+          <span>Print Slip</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CONSTITUENCY DETAIL -->
+  <div id="acDetailModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 space-y-4 relative border border-slate-200 max-h-[90vh] overflow-y-auto">
+      <button onclick="closeAcModal()" class="absolute right-4 top-4 text-slate-400 hover:text-slate-600">
+        <i data-lucide="x" class="w-6 h-6"></i>
+      </button>
+
+      <div>
+        <span id="acModalBadge" class="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">AC #--</span>
+        <h3 id="acModalTitle" class="text-xl font-bold text-slate-900 mt-1">Constituency Name</h3>
+        <p id="acModalSubtitle" class="text-sm text-slate-500">District: --</p>
+      </div>
+
+      <!-- Quick Demographics -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-100 text-center">
+        <div>
+          <span class="text-xs text-slate-500">Total Electors</span>
+          <p id="acModalTotal" class="text-lg font-bold text-slate-800">0</p>
+        </div>
+        <div>
+          <span class="text-xs text-slate-500">Male Electors</span>
+          <p id="acModalMale" class="text-lg font-bold text-blue-600">0</p>
+        </div>
+        <div>
+          <span class="text-xs text-slate-500">Female Electors</span>
+          <p id="acModalFemale" class="text-lg font-bold text-pink-600">0</p>
+        </div>
+        <div>
+          <span class="text-xs text-slate-500">Third Gender (TG)</span>
+          <p id="acModalThirdGender" class="text-lg font-bold text-purple-600">0</p>
+        </div>
+      </div>
+
+      <!-- Polling Stations List -->
+      <div>
+        <h4 class="text-sm font-bold text-slate-800 mb-2">Polling Stations & Booths</h4>
+        <div id="acModalPollingStations" class="space-y-2 max-h-60 overflow-y-auto pr-1">
+          <!-- Rendered dynamically -->
+        </div>
+      </div>
+
+      <div class="flex justify-end pt-2">
+        <button onclick="searchAcVoters()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-medium flex items-center gap-1.5 shadow">
+          <i data-lucide="users" class="w-4 h-4"></i>
+          <span>View All Voters in This AC</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: INTERACTIVE FAMILY TREE & PEDIGREE GRAPH -->
+  <div id="familyModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-2 sm:p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-5xl xl:max-w-6xl w-full p-3 sm:p-6 space-y-3 sm:space-y-4 relative border border-slate-200 max-h-[94vh] overflow-y-auto overflow-x-hidden">
+      <button onclick="closeFamilyModal()" class="absolute right-4 top-4 text-slate-400 hover:text-slate-600 z-30">
+        <i data-lucide="x" class="w-6 h-6"></i>
+      </button>
+
+      <!-- Target Elector Header with Controls -->
+      <div class="border-b border-slate-200 pb-3">
+        <div class="flex flex-wrap items-center justify-between gap-2.5">
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <span class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 flex items-center gap-1">
+              <i data-lucide="network" class="w-3.5 h-3.5"></i>
+              <span class="hidden sm:inline">Multi-Generational Kinship & Pedigree Graph</span>
+              <span class="sm:hidden">Pedigree Tree</span>
+            </span>
+            <span id="ft-household-tag" class="text-[11px] font-mono bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200 font-semibold">AC-Part-House</span>
+          </div>
+
+          <!-- Controls: View Mode & Zoom & Print -->
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <!-- View Mode Switcher -->
+            <div class="bg-slate-100 p-0.5 rounded-lg flex items-center border border-slate-200 text-xs">
+              <button id="btn-view-tree" onclick="toggleFamilyView('tree')" class="px-2.5 py-1 rounded-md font-semibold bg-white text-slate-800 shadow-xs flex items-center gap-1 transition">
+                <i data-lucide="git-branch" class="w-3.5 h-3.5 text-emerald-600"></i>
+                <span>Tree</span>
+              </button>
+              <button id="btn-view-grid" onclick="toggleFamilyView('grid')" class="px-2.5 py-1 rounded-md font-semibold text-slate-500 hover:text-slate-800 flex items-center gap-1 transition">
+                <i data-lucide="layout-grid" class="w-3.5 h-3.5"></i>
+                <span>Grid</span>
+              </button>
+            </div>
+
+            <!-- Zoom Controls (for Tree View) -->
+            <div id="tree-zoom-controls" class="flex items-center bg-slate-100 rounded-lg border border-slate-200 text-xs">
+              <button onclick="zoomFamilyTree(-0.15)" class="px-2.5 py-1 text-slate-600 hover:bg-slate-200 rounded-l-md font-bold text-sm" title="Zoom Out">−</button>
+              <button onclick="fitFamilyTreeToScreen()" class="px-2 py-1 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 font-medium text-[11px] border-x border-slate-200 flex items-center gap-0.5" title="Auto-Fit to Screen"><span>📱 Fit</span></button>
+              <button onclick="zoomFamilyTree(0)" id="zoom-level-label" class="px-2 py-1 text-slate-600 font-mono text-[11px]" title="Reset Zoom (100%)">100%</button>
+              <button onclick="zoomFamilyTree(0.15)" class="px-2.5 py-1 text-slate-600 hover:bg-slate-200 rounded-r-md font-bold text-sm" title="Zoom In">+</button>
+            </div>
+
+            <!-- Export PNG Image Button -->
+            <button id="ft-export-img-btn" onclick="exportFamilyTreeImage()" class="px-2.5 py-1 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold flex items-center gap-1 shadow-2xs transition" title="Export High-Resolution Pedigree PNG Image">
+              <i data-lucide="camera" class="w-3.5 h-3.5 text-slate-600"></i>
+              <span class="hidden sm:inline">Export PNG</span>
+              <span class="sm:hidden">PNG</span>
+            </button>
+
+            <!-- Print Household Slip Button -->
+            <button onclick="printCurrentHouseholdSlip()" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm transition" title="Print Consolidated Voter Slip for this Household">
+              <i data-lucide="printer" class="w-3.5 h-3.5"></i>
+              <span class="hidden sm:inline">Print Household Slip</span>
+              <span class="sm:hidden">Print Slip</span>
+            </button>
+            <button onclick="openHouseholdMapFromFamily()" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm transition" title="View Household on Google Maps / OSM">
+              <i data-lucide="map-pin" class="w-3.5 h-3.5"></i>
+              <span class="hidden sm:inline">View on Map</span>
+              <span class="sm:hidden">Map</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Target Elector Title & Back / Forward Stack Navigation -->
+        <div class="flex items-center gap-2 mt-2">
+          <button id="ft-back-btn" onclick="goBackFamilyTree()" class="hidden px-2.5 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold flex items-center gap-1 transition shadow-xs">
+            <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i>
+            <span id="ft-back-label">Back</span>
+          </button>
+          <button id="ft-fwd-btn" onclick="goForwardFamilyTree()" class="hidden px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold flex items-center gap-1 transition shadow-xs" title="Go Forward to Next Relative">
+            <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+          </button>
+          <h3 id="ft-target-name" class="text-xl sm:text-2xl font-bold text-slate-900">--</h3>
+        </div>
+        <p id="ft-target-meta" class="text-xs text-slate-500 mt-0.5">--</p>
+      </div>
+
+      <!-- Cohabitants & Head of Household Pill (Strictly Biological for Option 1) -->
+      <div class="flex flex-wrap items-center justify-between gap-2 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 p-2 sm:p-2.5 rounded-xl text-xs text-amber-900 shadow-sm">
+        <div class="flex items-center gap-2">
+          <i data-lucide="dna" class="w-4 h-4 text-amber-700"></i>
+          <span>Verified Biological Family: <strong id="ft-total-count" class="font-bold text-amber-950">--</strong></span>
+        </div>
+        <div id="ft-head-badge" class="flex items-center gap-1.5 text-xs font-semibold bg-amber-200/70 text-amber-900 px-2.5 py-1 rounded-lg">
+          <span>👑 Head of Household:</span> <span id="ft-head-name">--</span>
+        </div>
+      </div>
+
+      <!-- TOP MEMBER DETAILS INSPECTOR PANEL (Click any person in tree to inspect) -->
+      <div id="ft-member-inspector" class="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 rounded-2xl p-3 sm:p-4 text-white shadow-lg border border-slate-700/60 transition-all duration-200">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div class="flex items-center gap-3 min-w-0">
+            <div id="insp-avatar-box" class="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-amber-500/20 border-2 border-amber-400 flex items-center justify-center shrink-0 text-amber-300 shadow-inner">
+              <svg class="w-7 h-7 sm:w-8 sm:h-8" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+              </svg>
+            </div>
+            <div class="min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <h4 id="insp-name" class="text-sm sm:text-base font-bold text-white tracking-tight break-words">--</h4>
+                <span id="insp-role-badge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 shadow-2xs">Self (Target)</span>
+                <span id="insp-audit-badge" class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">🟢 100% Verified</span>
+                <span id="insp-house-badge" class="text-[11px] font-bold px-2.5 py-0.5 rounded-lg bg-amber-400/20 text-amber-300 border border-amber-400/40 flex items-center gap-1 shadow-xs">
+                  <i data-lucide="home" class="w-3.5 h-3.5 text-amber-400"></i>
+                  <span id="insp-house-val">House #--</span>
+                </span>
+                <span id="insp-children-badge" class="text-[10px] font-bold px-2.5 py-0.5 rounded-lg bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 flex items-center gap-1 shadow-xs">
+                  <span id="insp-children-val">👶 Children: --</span>
+                </span>
+              </div>
+              <p id="insp-meta" class="text-xs text-slate-300 mt-1 flex items-center gap-1.5 flex-wrap">
+                <span id="insp-age-gender">--</span>
+                <span>•</span>
+                <span id="insp-relative">--</span>
+                <span>•</span>
+                <span class="text-slate-400">EPIC:</span>
+                <span id="insp-epic" class="font-mono text-amber-300 font-semibold cursor-pointer hover:underline" onclick="copyInspEpic()" title="Click to copy EPIC">--</span>
+              </p>
+              <p id="insp-address" class="text-[11px] text-slate-400 mt-0.5 truncate">--</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 self-end sm:self-center shrink-0 flex-wrap">
+            <a id="insp-btn-gmaps" href="https://maps.google.com" target="_blank" rel="noopener noreferrer" onclick="openDirectGoogleMaps(event)" class="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs flex items-center gap-1 transition shadow-xs cursor-pointer" title="Open Designated Polling Station in Google Maps">
+              <i data-lucide="map-pin" class="w-3.5 h-3.5"></i>
+              <span>Google Maps ↗</span>
+            </a>
+            <button id="insp-btn-map" onclick="openHouseholdMapForInspectedMember()" class="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs flex items-center gap-1 transition shadow-xs" title="View Designated Polling Station on Map">
+              <i data-lucide="map" class="w-3.5 h-3.5"></i>
+              <span>View Map</span>
+            </button>
+            <button id="insp-btn-focus" onclick="focusTreeOnInspectedMember()" class="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs flex items-center gap-1 transition shadow-xs" title="Focus Tree On This Relative">
+              <i data-lucide="network" class="w-3.5 h-3.5"></i>
+              <span>Focus Tree</span>
+            </button>
+            <button id="insp-btn-slip" onclick="openSlipForInspectedMember()" class="px-2.5 py-1.5 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-xl text-xs flex items-center gap-1 transition border border-white/15" title="View Official ECI Voter Slip">
+              <i data-lucide="id-card" class="w-3.5 h-3.5"></i>
+              <span>Slip</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mobile Touch Helper Hint -->
+      <div class="sm:hidden flex items-center justify-between px-3 py-1 bg-slate-100 rounded-lg text-[10px] text-slate-600 border border-slate-200">
+        <span class="flex items-center gap-1"><i data-lucide="hand" class="w-3 h-3 text-amber-600"></i> 1-Finger drag to pan</span>
+        <span class="flex items-center gap-1"><i data-lucide="maximize-2" class="w-3 h-3 text-emerald-600"></i> Tap [📱 Fit] to auto-scale</span>
+      </div>
+
+      <!-- VIEW 1: INTERACTIVE PEDIGREE TREE DIAGRAM (Default) -->
+      <div id="ft-pedigree-view" class="pedigree-container">
+        <div id="ft-pedigree-canvas" class="pedigree-canvas">
+          <!-- Dynamically populated with genealogical chart by renderVisualPedigreeTree -->
+        </div>
+      </div>
+
+      <!-- VIEW 2: DETAILED CARD GRID (Alternate View) -->
+      <div id="ft-grid-view" class="space-y-4 hidden">
+        <!-- 1. Grandparents -->
+        <div id="ft-grandparents-section" class="space-y-2 hidden">
+          <div class="flex items-center gap-2 border-b border-amber-100 pb-1">
+            <span class="text-xs font-bold text-amber-900 uppercase tracking-wider flex items-center gap-1">
+              <span>🧓 Grandparents & Patriarchs (Generation 1)</span>
+            </span>
+          </div>
+          <div id="ft-grandparents-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2"></div>
+        </div>
+
+        <!-- 2. Parents -->
+        <div id="ft-parents-section" class="space-y-2 hidden">
+          <div class="flex items-center gap-2 border-b border-blue-100 pb-1">
+            <span class="text-xs font-bold text-blue-900 uppercase tracking-wider flex items-center gap-1">
+              <span>👨‍👩‍👧 Parents (Generation 2)</span>
+            </span>
+          </div>
+          <div id="ft-parents-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2"></div>
+        </div>
+
+        <!-- 3. Paternal Uncles & Aunts -->
+        <div id="ft-uncles-section" class="space-y-2 hidden">
+          <div class="flex items-center gap-2 border-b border-indigo-100 pb-1">
+            <span class="text-xs font-bold text-indigo-900 uppercase tracking-wider flex items-center gap-1">
+              <span>🏡 Paternal Uncles & Aunts (Adjacent Homesteads)</span>
+            </span>
+          </div>
+          <div id="ft-uncles-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2"></div>
+        </div>
+
+        <!-- 4. Spouses -->
+        <div id="ft-spouses-section" class="space-y-2 hidden">
+          <div class="flex items-center gap-2 border-b border-pink-100 pb-1">
+            <span class="text-xs font-bold text-pink-900 uppercase tracking-wider flex items-center gap-1">
+              <span>💍 Spouse</span>
+            </span>
+          </div>
+          <div id="ft-spouses-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2"></div>
+        </div>
+
+        <!-- 5. Target & Siblings -->
+        <div id="ft-siblings-section" class="space-y-2 hidden">
+          <div class="flex items-center gap-2 border-b border-purple-100 pb-1">
+            <span class="text-xs font-bold text-purple-900 uppercase tracking-wider flex items-center gap-1">
+              <span>👫 Target Elector & Siblings (Generation 3)</span>
+            </span>
+          </div>
+          <div id="ft-siblings-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2"></div>
+        </div>
+
+        <!-- 6. Cousins -->
+        <div id="ft-cousins-section" class="space-y-2 hidden">
+          <div class="flex items-center gap-2 border-b border-teal-100 pb-1">
+            <span class="text-xs font-bold text-teal-900 uppercase tracking-wider flex items-center gap-1">
+              <span>🤝 Cousin Sisters & Cousin Brothers (Extended Lineage)</span>
+            </span>
+          </div>
+          <div id="ft-cousins-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2"></div>
+        </div>
+
+        <!-- 7. Children -->
+        <div id="ft-children-section" class="space-y-2 hidden">
+          <div class="flex items-center gap-2 border-b border-emerald-100 pb-1">
+            <span class="text-xs font-bold text-emerald-900 uppercase tracking-wider flex items-center gap-1">
+              <span>👶 Children (Generation 4)</span>
+            </span>
+          </div>
+          <div id="ft-children-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2"></div>
+        </div>
+
+        <!-- 8. Nephews & Nieces -->
+        <div id="ft-nephews-section" class="space-y-2 hidden">
+          <div class="flex items-center gap-2 border-b border-indigo-100 pb-1">
+            <span class="text-xs font-bold text-indigo-900 uppercase tracking-wider flex items-center gap-1">
+              <span>👶 Nephews & Nieces (Brother's & Sister's Children)</span>
+            </span>
+          </div>
+          <div id="ft-nephews-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2"></div>
+        </div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-200">
+        <span class="text-xs text-slate-500 hidden sm:inline">Tip: Click any avatar circle to view official roll slip, or focus the lineage tree on that relative.</span>
+        <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+          <button onclick="shareHouseholdSlip()" class="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-xl text-xs font-semibold flex items-center gap-1 transition border border-emerald-200">
+            <i data-lucide="share-2" class="w-3.5 h-3.5"></i>
+            <span>Share Family Slip</span>
+          </button>
+          <button onclick="closeFamilyModal()" class="px-4 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition">Close Tree</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: PRINTABLE CONSOLIDATED HOUSEHOLD VOTER SLIP -->
+  <div id="householdSlipModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-3xl w-full p-6 space-y-4 relative border border-slate-200 max-h-[90vh] overflow-y-auto">
+      <button onclick="closeHouseholdSlipModal()" class="absolute right-4 top-4 text-slate-400 hover:text-slate-600">
+        <i data-lucide="x" class="w-6 h-6"></i>
+      </button>
+
+      <div id="printableHouseholdSlip" class="space-y-4 p-5 border border-slate-300 rounded-xl bg-amber-50/20">
+        <div class="flex items-start justify-between border-b border-dashed border-slate-300 pb-3 gap-2">
+          <div class="space-y-0.5">
+            <p class="text-xs font-bold uppercase tracking-widest text-emerald-800">Election Commission of India • State of Manipur (S14)</p>
+            <h3 class="text-base font-extrabold text-slate-900 mt-1">OFFICIAL HOUSEHOLD VOTER INFORMATION SLIP</h3>
+            <p class="text-[11px] text-slate-600 mt-0.5">SSR 2027 Draft Electoral Roll • Polling Booth Information Record</p>
+          </div>
+          <!-- 2D Scannable Household QR Code -->
+          <div id="hs-slip-qrcode" class="shrink-0 w-20 h-20 bg-white border border-slate-300 rounded-lg p-1 flex items-center justify-center shadow-xs" title="Official Scannable Household ECI QR Code"></div>
+        </div>
+
+        <!-- Household Meta Grid -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs bg-white p-3 rounded-lg border border-slate-200">
+          <div><span class="text-slate-400 block text-[10px]">Constituency:</span> <strong id="hs-ac-name" class="text-slate-800">--</strong></div>
+          <div><span class="text-slate-400 block text-[10px]">Polling Station:</span> <strong id="hs-part-name" class="text-slate-800">--</strong></div>
+          <div><span class="text-slate-400 block text-[10px]">House No.:</span> <strong id="hs-house-no" class="text-slate-800 font-mono">--</strong></div>
+          <div><span class="text-slate-400 block text-[10px]">Head of House:</span> <strong id="hs-head-name" class="text-amber-800 font-bold">--</strong></div>
+        </div>
+
+        <!-- Electors Table -->
+        <div class="overflow-x-auto border border-slate-200 rounded-lg">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
+              <tr>
+                <th class="p-2 text-center w-10">S.No</th>
+                <th class="p-2">Elector Name</th>
+                <th class="p-2">Relative Name (Relation)</th>
+                <th class="p-2 text-center">Gender</th>
+                <th class="p-2 text-center">Age</th>
+                <th class="p-2">EPIC (Voter ID)</th>
+                <th class="p-2 text-center">Household Role</th>
+              </tr>
+            </thead>
+            <tbody id="hs-electors-tbody" class="divide-y divide-slate-100 bg-white">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Signatures & Instructions -->
+        <div class="flex justify-between items-end pt-4 border-t border-dashed border-slate-300 text-[11px] text-slate-500">
+          <div>
+            <p class="font-medium text-slate-700">Instructions for Electors:</p>
+            <p>1. Carry a valid photo identity card (EPIC, Aadhaar, PAN) to the polling station.</p>
+            <p>2. Polling hours: 7:00 AM to 4:00 PM on official voting day.</p>
+          </div>
+          <div class="text-center pr-4">
+            <div class="h-10 border-b border-slate-400 w-36"></div>
+            <p class="text-[10px] text-slate-600 mt-1">Signature of BLO / Agent</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex flex-wrap items-center justify-end gap-2 sm:gap-3 pt-2">
+        <button onclick="closeHouseholdSlipModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold">Cancel</button>
+        <button onclick="shareHouseholdSlipWhatsApp()" class="px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition">
+          <i data-lucide="share-2" class="w-4 h-4 text-emerald-700"></i>
+          <span>Share WhatsApp Pass</span>
+        </button>
+        <button onclick="printHouseholdSlipIsolated()" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow">
+          <i data-lucide="printer" class="w-4 h-4"></i>
+          <span>Print Slip Now</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: OFFICIAL DESIGNATED POLLING STATION & VOTING BOOTH -->
+  <div id="mapModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-2 sm:p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full p-4 sm:p-5 space-y-3 relative border border-slate-200 max-h-[94vh] overflow-y-auto">
+      
+      <!-- Top Bar: Clean Booth Title & Prominent Google Maps Action Buttons -->
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-2.5">
+        <div class="space-y-1 pr-6 sm:pr-0 min-w-0">
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-blue-100 text-blue-900 border border-blue-200 flex items-center gap-1">
+              <i data-lucide="landmark" class="w-3 h-3 text-blue-700"></i>
+              <span>Official Polling Station</span>
+            </span>
+            <span id="map-ac-badge" class="text-[10px] font-bold bg-slate-100 text-slate-800 px-2 py-0.5 rounded-md border border-slate-200">AC #-- • Part #--</span>
+            <span id="map-house-badge" class="text-[10px] font-bold bg-amber-100 text-amber-900 px-2 py-0.5 rounded-md border border-amber-200 flex items-center gap-1">
+              <i data-lucide="home" class="w-3 h-3 text-amber-700"></i>
+              <span id="map-house-text">House #--</span>
+            </span>
+            <!-- Live Real-Time GPS Distance Badge -->
+            <button id="map-gps-dist-btn" onclick="calculateDistanceToPollingStation()" class="text-[10px] font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-md border border-emerald-300 flex items-center gap-1 transition cursor-pointer" title="Calculate Driving & Walking Distance from your device GPS">
+              <i data-lucide="navigation" class="w-3 h-3 text-emerald-600"></i>
+              <span id="map-gps-dist-text">📍 Check GPS Distance</span>
+            </button>
+          </div>
+          <h3 id="map-booth-title" class="text-base sm:text-lg font-extrabold text-slate-900 leading-tight">
+            --
+          </h3>
+          <p id="map-section-desc" class="text-xs text-slate-600 font-medium mt-0.5">--</p>
+        </div>
+
+        <!-- PROMINENT GOOGLE MAPS ACTION BUTTONS AT THE VERY TOP -->
+        <div class="flex items-center gap-2 shrink-0 flex-wrap">
+          <a id="map-gmaps-link" href="https://maps.google.com" target="_blank" rel="noopener noreferrer" 
+             onclick="openDirectMapModalGoogleMaps(event)" 
+             class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-1.5 shadow-md hover:shadow-lg transition cursor-pointer" 
+             title="Open Designated Polling Station directly in Google Maps">
+            <i data-lucide="map-pin" class="w-4 h-4 text-emerald-100"></i>
+            <span>Open in Google Maps ↗</span>
+          </a>
+          <a id="map-directions-link" href="https://maps.google.com" target="_blank" rel="noopener noreferrer" 
+             onclick="openDirectMapModalDirections(event)" 
+             class="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 shadow-md hover:shadow-lg transition cursor-pointer" 
+             title="Get Driving or Walking Directions to Polling Station">
+            <i data-lucide="navigation" class="w-3.5 h-3.5 text-blue-100"></i>
+            <span>Directions ↗</span>
+          </a>
+          <button onclick="closeMapModal()" 
+                  class="p-2 text-slate-400 hover:text-slate-700 rounded-xl hover:bg-slate-100 transition cursor-pointer" 
+                  title="Close Map">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Leaflet Map Container IMMEDIATELY UNDER TOP BAR (CLEAN, NO REDUNDANT BANNERS) -->
+      <div class="relative rounded-xl overflow-hidden border border-slate-300 shadow-inner">
+        <div id="leafletMap" style="height: 380px;"></div>
+        <div class="absolute bottom-2 left-2 z-[400] bg-white/90 backdrop-blur-md px-2.5 py-1 rounded-md text-[10px] font-mono text-slate-700 shadow border border-slate-200 flex items-center gap-1.5">
+          <i data-lucide="map-pin" class="w-3 h-3 text-blue-600"></i>
+          <span id="map-coords-pill">Lat: -- • Lng: --</span>
+        </div>
+      </div>
+
+      <!-- Household Family Roster Section -->
+      <div class="space-y-2 border-t border-slate-200 pt-2.5">
+        <div class="flex items-center justify-between flex-wrap gap-2">
+          <div class="flex items-center gap-2">
+            <h4 class="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+              <i data-lucide="users" class="w-3.5 h-3.5 text-amber-600"></i>
+              <span>Registered Household Electors Voting at this Booth</span>
+            </h4>
+            <span id="map-members-pill" class="px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full text-[11px] font-bold">--</span>
+          </div>
+          <button onclick="openFamilyFromMap()" class="text-xs font-bold text-amber-700 hover:text-amber-900 flex items-center gap-1 hover:underline cursor-pointer">
+            <i data-lucide="network" class="w-3.5 h-3.5"></i>
+            <span>Open Pedigree Tree Diagram</span>
+          </button>
+        </div>
+
+        <!-- Dynamic Member Pills -->
+        <div id="map-family-members-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 max-h-40 overflow-y-auto p-0.5">
+          <!-- Dynamic Member Cards populated by JS -->
+        </div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="flex items-center justify-between gap-2 pt-2 border-t border-slate-200 text-xs">
+        <p class="text-[11px] text-slate-400">Official ECI Public Building Landmark • 100% Verified Location</p>
+        <div class="flex items-center gap-2">
+          <button onclick="closeMapModal()" class="px-3.5 py-1.5 border border-slate-300 text-slate-700 rounded-xl font-semibold hover:bg-slate-50 transition cursor-pointer">Close</button>
+          <button onclick="openFamilyFromMap()" class="px-3.5 py-1.5 bg-gradient-to-r from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 text-amber-900 border border-amber-200 rounded-xl font-bold flex items-center gap-1.5 transition cursor-pointer">
+            <i data-lucide="network" class="w-3.5 h-3.5 text-amber-700"></i>
+            <span>View Family Tree</span>
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="bg-white border-t border-slate-200 py-4 mt-8">
+    <div class="max-w-7xl mx-auto px-4 text-center text-xs text-slate-500 flex flex-col sm:flex-row justify-between items-center gap-2">
+      <p>Manipur Voter Search Web Portal • 100% Free & Open Source Solution</p>
+      <p>Supports all 60 Assembly Constituencies & CEO Manipur Electoral Roll PDF Parsing</p>
+    </div>
+  </footer>
+
+  <!-- MOBILE BOTTOM NAVIGATION BAR (Fixed at bottom for smartphones) -->
+  <nav class="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 py-1.5 px-3 flex sm:hidden items-center justify-around shadow-2xl">
+    <button onclick="switchTab('search')" id="mobTab-search" class="flex flex-col items-center gap-0.5 text-emerald-700 font-semibold text-[11px] transition">
+      <div class="p-1 rounded-xl bg-emerald-100/70 text-emerald-800"><i data-lucide="search" class="w-5 h-5"></i></div>
+      <span>Search</span>
+    </button>
+    <button onclick="switchTab('constituencies')" id="mobTab-constituencies" class="flex flex-col items-center gap-0.5 text-slate-500 font-medium text-[11px] transition">
+      <div class="p-1 rounded-xl"><i data-lucide="landmark" class="w-5 h-5"></i></div>
+      <span>ACs (60)</span>
+    </button>
+    <button onclick="switchTab('rapid')" id="mobTab-rapid" class="flex flex-col items-center gap-0.5 text-slate-500 font-medium text-[11px] transition">
+      <div class="p-1 rounded-xl"><i data-lucide="zap" class="w-5 h-5 text-amber-500"></i></div>
+      <span>Rapid</span>
+    </button>
+    <button onclick="switchTab('upload')" id="mobTab-upload" class="flex flex-col items-center gap-0.5 text-slate-500 font-medium text-[11px] transition">
+      <div class="p-1 rounded-xl"><i data-lucide="file-up" class="w-5 h-5"></i></div>
+      <span>Import</span>
+    </button>
+  </nav>
+
+  <script>
+    // State management
+    let state = {
+      constituencies: [],
+      currentPage: 1,
+      selectedAcNo: null,
+      activeModalAc: null,
+      currentResults: [],
+      activeSlipVoter: null,
+      activeMapData: null
+    };
+
+    // Recent Searches Management
+    function getRecentSearches() {
+      try {
+        return JSON.parse(localStorage.getItem('manipur_recent_searches') || '[]');
+      } catch (e) {
+        return [];
+      }
+    }
+
+    function saveRecentSearch(q) {
+      if (!q || q.length < 2) return;
+      try {
+        let list = getRecentSearches().filter(item => item.toLowerCase() !== q.toLowerCase());
+        list.unshift(q);
+        if (list.length > 6) list = list.slice(0, 6);
+        localStorage.setItem('manipur_recent_searches', JSON.stringify(list));
+      } catch (e) {}
+    }
+
+    function clearRecentSearches() {
+      try {
+        localStorage.removeItem('manipur_recent_searches');
+        const box = document.getElementById('recentSearchesBox');
+        if (box) box.classList.add('hidden');
+      } catch (e) {}
+    }
+
+    function renderRecentSearches() {
+      const box = document.getElementById('recentSearchesBox');
+      if (!box) return;
+      const list = getRecentSearches();
+      if (list.length === 0) {
+        box.classList.add('hidden');
+        return;
+      }
+      box.innerHTML = `
+        <div class="flex items-center justify-between px-3 py-1.5 text-xs text-slate-400 font-semibold border-b border-slate-100">
+          <span class="flex items-center gap-1.5"><i data-lucide="history" class="w-3.5 h-3.5 text-slate-400"></i> Recent Searches</span>
+          <button onclick="clearRecentSearches()" class="text-[10px] text-rose-600 hover:underline">Clear History</button>
+        </div>
+        <div class="py-1">
+          ${list.map(term => `
+            <div onclick="selectRecentSearch('${term.replace(/'/g, "\\'")}')" class="px-3 py-2 text-xs text-slate-700 hover:bg-slate-50 cursor-pointer flex items-center justify-between rounded-lg transition">
+              <div class="flex items-center gap-2">
+                <i data-lucide="clock" class="w-3.5 h-3.5 text-slate-400"></i>
+                <span class="font-medium">${term}</span>
+              </div>
+              <i data-lucide="arrow-up-right" class="w-3 h-3 text-slate-400"></i>
+            </div>
+          `).join('')}
+        </div>
+      `;
+      box.classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function selectRecentSearch(term) {
+      const input = document.getElementById('searchQuery');
+      if (input) input.value = term;
+      const box = document.getElementById('recentSearchesBox');
+      if (box) box.classList.add('hidden');
+      executeSearch(1);
+    }
+
+    function handleSearchFocus() {
+      const q = document.getElementById('searchQuery').value.trim();
+      if (q.length === 0) {
+        renderRecentSearches();
+      }
+    }
+
+    // Global Shortcut Keys (Ctrl+K and /)
+    window.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey && e.key.toLowerCase() === 'k') || (e.key === '/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA')) {
+        e.preventDefault();
+        const input = document.getElementById('searchQuery');
+        if (input) {
+          input.focus();
+          input.select();
+        }
+      }
+    });
+
+    // Rapid Downloader State
+    let rapidState = {
+      sessionId: "session_" + Math.random().toString(36).substring(2, 9),
+      acNo: 1,
+      acName: "Khundrakpam",
+      totalParts: 43,
+      nextPart: 1,
+      submitting: false
+    };
+
+    function populateRapidAcDropdown() {
+      const select = document.getElementById('rapidAcSelect');
+      if (!select) return;
+      select.innerHTML = '';
+      state.constituencies.forEach(ac => {
+        const opt = document.createElement('option');
+        opt.value = ac.ac_no;
+        opt.innerText = `${ac.ac_no} - ${ac.ac_name} (${ac.district})`;
+        if (ac.ac_no === rapidState.acNo) opt.selected = true;
+        select.appendChild(opt);
+      });
+    }
+
+    async function changeRapidAc(acNo) {
+      rapidState.acNo = parseInt(acNo);
+      const found = state.constituencies.find(c => c.ac_no === rapidState.acNo);
+      if (found) rapidState.acName = found.ac_name;
+      await initRapidDownloader();
+    }
+
+    async function initRapidDownloader() {
+      populateRapidAcDropdown();
+      const statusText = document.getElementById('rapidProgressText');
+      statusText.innerText = `Fetching live polling booths from CEO Manipur for AC ${rapidState.acNo}...`;
+
+      try {
+        const res = await fetch(`/api/downloader/status?ac_no=${rapidState.acNo}`);
+        const data = await res.json();
+        
+        rapidState.totalParts = data.total_parts;
+        rapidState.acName = data.ac_name;
+
+        const count = data.completed_count;
+        const total = data.total_parts;
+        const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+
+        document.getElementById('rapidProgressBadge')?.remove(); // if any
+        statusText.innerText = `${count} of ${total} Parts Downloaded`;
+        document.getElementById('rapidPercent').innerText = `${pct}%`;
+        document.getElementById('rapidProgressBar').style.width = `${pct}%`;
+
+        if (data.next_part === null) {
+          document.getElementById('rapidActiveBox').classList.add('hidden');
+          document.getElementById('rapidCompleteBox').classList.remove('hidden');
+          document.getElementById('rapidCompleteTitle').innerText = `All ${total} Parts Completed for ${data.ac_no} - ${data.ac_name}!`;
+        } else {
+          rapidState.nextPart = data.next_part;
+          document.getElementById('rapidCurrentTarget').innerText = `Part ${data.next_part} of ${total}`;
+          document.getElementById('rapidBoothDetail').innerText = data.next_booth_name || `Part ${data.next_part}`;
+          document.getElementById('rapidActiveBox').classList.remove('hidden');
+          document.getElementById('rapidCompleteBox').classList.add('hidden');
+          await loadRapidCaptcha();
+        }
+      } catch (e) {
+        console.error("Downloader status error:", e);
+      }
+    }
+
+    async function loadRapidCaptcha() {
+      const img = document.getElementById('rapidCaptchaImg');
+      const input = document.getElementById('rapidCaptchaInput');
+      input.value = '';
+      img.src = '';
+      try {
+        const res = await fetch(`/api/downloader/captcha?session_id=${rapidState.sessionId}`);
+        const data = await res.json();
+        if (data.success && data.captcha_image) {
+          img.src = data.captcha_image;
+          setTimeout(() => input.focus(), 100);
+        }
+      } catch (e) {
+        console.error("Captcha fetch error:", e);
+      }
+    }
+
+    async function submitRapidCaptcha() {
+      if (rapidState.submitting) return;
+      const input = document.getElementById('rapidCaptchaInput');
+      const code = input.value.trim();
+      if (!code) {
+        alert("Please enter the CAPTCHA letters shown in the box.");
+        input.focus();
+        return;
+      }
+
+      const btn = document.getElementById('rapidSubmitBtn');
+      rapidState.submitting = true;
+      btn.disabled = true;
+      btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i><span>Validating & Downloading Part...</span>';
+      lucide.createIcons();
+
+      const logContainer = document.getElementById('rapidStatusLog');
+
+      try {
+        const res = await fetch('/api/downloader/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            session_id: rapidState.sessionId,
+            ac_no: rapidState.acNo,
+            ac_name: rapidState.acName,
+            part_no: rapidState.nextPart,
+            captcha_code: code
+          })
+        });
+        const result = await res.json();
+
+        if (result.success) {
+          logContainer.innerHTML = `<p class="text-emerald-700 font-semibold">✔ ${result.message}</p>` + logContainer.innerHTML;
+          fetchStats();
+          fetchConstituencies();
+          await initRapidDownloader();
+        } else {
+          logContainer.innerHTML = `<p class="text-rose-600 font-medium">✖ ${result.message}</p>` + logContainer.innerHTML;
+          await loadRapidCaptcha();
+        }
+      } catch (e) {
+        logContainer.innerHTML = `<p class="text-rose-600 font-medium">✖ Request failed: ${e.message}</p>` + logContainer.innerHTML;
+        await loadRapidCaptcha();
+      } finally {
+        rapidState.submitting = false;
+        btn.disabled = false;
+        btn.innerHTML = '<i data-lucide="download" class="w-4 h-4"></i><span>Submit & Download Part (Enter)</span>';
+        lucide.createIcons();
+      }
+    }
+    document.addEventListener("DOMContentLoaded", async () => {
+      lucide.createIcons();
+      await fetchStats();
+      await fetchConstituencies();
+      executeSearch(1);
+    });
+
+    function switchTab(tab) {
+      document.getElementById('view-search').classList.add('hidden');
+      document.getElementById('view-constituencies').classList.add('hidden');
+      document.getElementById('view-rapid').classList.add('hidden');
+      document.getElementById('view-upload').classList.add('hidden');
+
+      // Update Desktop Tabs
+      document.querySelectorAll('.nav-tab').forEach(b => {
+        b.classList.remove('bg-white/20', 'text-white');
+        b.classList.add('text-emerald-100');
+      });
+      const activeBtn = document.getElementById(`tabBtn-${tab}`);
+      if (activeBtn) {
+        activeBtn.classList.add('bg-white/20', 'text-white');
+        activeBtn.classList.remove('text-emerald-100');
+      }
+
+      // Update Mobile Bottom Tabs
+      const allTabs = ['search', 'constituencies', 'rapid', 'upload'];
+      allTabs.forEach(t => {
+        const mobBtn = document.getElementById(`mobTab-${t}`);
+        if (mobBtn) {
+          const iconDiv = mobBtn.querySelector('div');
+          if (t === tab) {
+            mobBtn.className = "flex flex-col items-center gap-0.5 text-emerald-700 font-semibold text-[11px] transition";
+            if (iconDiv) iconDiv.className = "p-1 rounded-xl bg-emerald-100/70 text-emerald-800";
+          } else {
+            mobBtn.className = "flex flex-col items-center gap-0.5 text-slate-500 font-medium text-[11px] transition";
+            if (iconDiv) iconDiv.className = "p-1 rounded-xl hover:bg-slate-100 text-slate-500";
+          }
+        }
+      });
+
+      document.getElementById(`view-${tab}`).classList.remove('hidden');
+
+      if (tab === 'constituencies') {
+        renderConstituenciesList();
+      } else if (tab === 'rapid') {
+        initRapidDownloader();
+      }
+      lucide.createIcons();
+    }
+
+    async function fetchStats() {
+      try {
+        const res = await fetch('/api/stats');
+        const data = await res.json();
+        if (data.total_voters != null) {
+          document.getElementById('stat-total-voters').innerText = Number(data.total_voters).toLocaleString();
+        }
+        if (document.getElementById('stat-active-deleted')) {
+          const act = data.active_voters != null ? Number(data.active_voters).toLocaleString() : Number(data.total_voters).toLocaleString();
+          const del = data.deleted_voters != null ? Number(data.deleted_voters).toLocaleString() : '0';
+          document.getElementById('stat-active-deleted').innerText = `${act} Active • ${del} Deleted`;
+        }
+        if (data.total_male != null) {
+          document.getElementById('stat-male-voters').innerText = Number(data.total_male).toLocaleString();
+        }
+        if (data.total_female != null) {
+          document.getElementById('stat-female-voters').innerText = Number(data.total_female).toLocaleString();
+        }
+        if (document.getElementById('stat-other-voters')) {
+          document.getElementById('stat-other-voters').innerText = Number(data.total_other || 0).toLocaleString();
+        }
+        if (data.avg_age != null) {
+          document.getElementById('stat-avg-age').innerText = `${data.avg_age} yrs`;
+        }
+      } catch (e) {
+        console.error("Stats fetch error:", e);
+      }
+    }
+
+    async function fetchConstituencies() {
+      try {
+        const res = await fetch('/api/constituencies');
+        state.constituencies = await res.json();
+        
+        const filterSelect = document.getElementById('filterAC');
+        filterSelect.innerHTML = '<option value="">All 60 Constituencies</option>';
+        state.constituencies.forEach(ac => {
+          const opt = document.createElement('option');
+          opt.value = ac.ac_no;
+          opt.innerText = `${ac.ac_no} - ${ac.ac_name} (${ac.district})`;
+          filterSelect.appendChild(opt);
+        });
+      } catch (e) {
+        console.error("Constituencies fetch error:", e);
+      }
+    }
+
+    function renderPagination(data) {
+      const container = document.getElementById('paginationControls');
+      if (!container) return;
+      if (!data || data.total_pages <= 1) {
+        container.innerHTML = '';
+        return;
+      }
+
+      const curr = data.page;
+      const total = data.total_pages;
+
+      let html = '<div class="flex items-center gap-1.5">';
+      
+      // Prev button
+      if (curr > 1) {
+        html += `<button onclick="executeSearch(${curr - 1})" class="px-2.5 py-1 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition shadow-sm flex items-center gap-1"><i data-lucide="chevron-left" class="w-3.5 h-3.5"></i> Prev</button>`;
+      } else {
+        html += `<button disabled class="px-2.5 py-1 text-xs font-medium text-slate-300 bg-slate-50 border border-slate-200 rounded-lg cursor-not-allowed flex items-center gap-1"><i data-lucide="chevron-left" class="w-3.5 h-3.5"></i> Prev</button>`;
+      }
+
+      html += `<span class="text-xs text-slate-600 font-semibold px-2">Page ${curr} of ${total}</span>`;
+
+      // Next button
+      if (curr < total) {
+        html += `<button onclick="executeSearch(${curr + 1})" class="px-2.5 py-1 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition shadow-sm flex items-center gap-1">Next <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i></button>`;
+      } else {
+        html += `<button disabled class="px-2.5 py-1 text-xs font-medium text-slate-300 bg-slate-50 border border-slate-200 rounded-lg cursor-not-allowed flex items-center gap-1">Next <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i></button>`;
+      }
+
+      html += '</div>';
+      container.innerHTML = html;
+    }
+
+    function renderResults(data) {
+      const grid = document.getElementById('voterResultsGrid');
+      const summary = document.getElementById('searchSummary');
+      if (!grid) return;
+
+      state.currentResults = (data && data.results) ? data.results : [];
+
+      if (!data || !data.results || data.results.length === 0) {
+        if (summary) summary.innerText = "No registered voters found matching your criteria.";
+        renderPagination({ total_pages: 0 });
+        grid.innerHTML = `
+          <div class="col-span-full py-16 text-center text-slate-400">
+            <i data-lucide="user-x" class="w-12 h-12 mx-auto mb-3 text-slate-300"></i>
+            <h4 class="text-base font-bold text-slate-700">No matching electors found</h4>
+            <p class="text-xs text-slate-400 mt-1 max-w-md mx-auto">Try checking your spelling, entering a partial name or EPIC number, or adjusting the active filters.</p>
+          </div>
+        `;
+        lucide.createIcons();
+        return;
+      }
+
+      const start = ((data.page - 1) * data.limit) + 1;
+      const end = Math.min(data.page * data.limit, data.total);
+      if (summary) {
+        summary.innerHTML = `Displaying <span class="font-bold text-slate-800">${start.toLocaleString()} - ${end.toLocaleString()}</span> of <span class="font-bold text-emerald-700">${data.total.toLocaleString()}</span> voters`;
+      }
+
+      renderPagination(data);
+
+      let didYouMeanBanner = '';
+      if (data && data.did_you_mean) {
+        didYouMeanBanner = `
+          <div class="col-span-full mb-3 p-3 bg-amber-50/90 border border-amber-200 rounded-2xl text-xs text-amber-900 flex items-center justify-between gap-2 shadow-2xs">
+            <div class="flex items-center gap-2">
+              <span class="text-base">💡</span>
+              <span>Showing results for <strong class="font-extrabold text-slate-900 underline text-sm">${data.did_you_mean}</strong></span>
+            </div>
+            <button type="button" onclick="forceSearchOriginal('${(state.lastTypedQuery || '').replace(/'/g, "\\'")}')" class="text-[11px] text-blue-700 hover:underline font-semibold cursor-pointer">
+              Search instead for <em>${state.lastTypedQuery || ''}</em>
+            </button>
+          </div>
+        `;
+      }
+
+      grid.innerHTML = didYouMeanBanner + data.results.map((voter, idx) => {
+        const isDeleted = voter.status === 'DELETED';
+        const genderLabel = voter.gender === 'M' ? 'Male' : (voter.gender === 'F' ? 'Female' : 'Other');
+        const safeName = (voter.name || '').replace(/'/g, "\\'");
+
+        return `
+          <div class="bg-white rounded-2xl border ${isDeleted ? 'border-rose-200 bg-rose-50/20' : 'border-slate-200'} hover:border-emerald-500 hover:shadow-md transition p-4 flex flex-col justify-between space-y-3">
+            <div>
+              <div class="flex items-start justify-between gap-2">
+                <span class="font-mono text-xs font-bold px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  ${voter.epic_no || 'N/A'}
+                </span>
+                <div>
+                  ${isDeleted
+                    ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200">DELETED</span>'
+                    : '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">ACTIVE</span>'
+                  }
+                </div>
+              </div>
+
+              <h4 class="font-bold text-slate-900 text-base mt-2 line-clamp-1 ${isDeleted ? 'line-through text-slate-400' : ''}" title="${voter.name || ''}">
+                ${voter.name || 'Unknown'}
+              </h4>
+
+              <p class="text-xs text-slate-500 mt-0.5">
+                <span class="font-medium text-slate-600">${voter.relation_type || 'Relative'}:</span> ${voter.relative_name || 'N/A'}
+              </p>
+
+              <div class="flex items-center gap-2 mt-2 text-xs text-slate-600 flex-wrap">
+                <span class="px-2 py-0.5 bg-slate-100 rounded text-slate-700 font-medium text-[11px]">
+                  ${genderLabel}, ${voter.age || '-'} yrs
+                </span>
+                ${voter.house_no ? `<span class="px-2 py-0.5 bg-slate-100 rounded text-slate-500 text-[11px]">House #${voter.house_no}</span>` : ''}
+              </div>
+
+              <div class="mt-3 pt-2 border-t border-slate-100 text-[11px] text-slate-500 space-y-0.5">
+                <p class="truncate"><strong class="text-slate-700 font-semibold">AC #${voter.ac_no}:</strong> ${voter.ac_name || ''}</p>
+                <p class="truncate text-slate-400" title="${voter.polling_station_name || ''}">
+                  <span class="font-medium text-slate-600">Part #${voter.part_no}:</span> ${voter.polling_station_name || 'Designated Booth'}
+                </p>
+              </div>
+            </div>
+
+            <div class="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+              <button onclick="openVoterModalByIndex(${idx})" class="flex-1 py-2 px-2.5 bg-emerald-50 hover:bg-emerald-100 active:bg-emerald-200 text-emerald-800 border border-emerald-200/60 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer" title="Print Official ECI Voter Information Slip">
+                <i data-lucide="id-card" class="w-3.5 h-3.5 text-emerald-700"></i>
+                <span>Slip</span>
+              </button>
+              <button onclick="openFamilyModal(${voter.id}, '${safeName}')" class="flex-1 py-2 px-2.5 bg-gradient-to-r from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 active:bg-orange-200 text-amber-950 border border-amber-200/90 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition shadow-2xs cursor-pointer" title="Family Tree & Kinship Graph">
+                <i data-lucide="network" class="w-3.5 h-3.5 text-amber-700"></i>
+                <span>Family Tree</span>
+              </button>
+              <button onclick="openMapModalByIndex(${idx})" class="p-2.5 bg-blue-50 hover:bg-blue-100 active:bg-blue-200 text-blue-700 border border-blue-200/70 rounded-xl transition cursor-pointer shrink-0" title="View Official Polling Station on Map & Google Maps">
+                <i data-lucide="map-pin" class="w-4 h-4 text-blue-700"></i>
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      lucide.createIcons();
+    }
+
+    function openVoterModalByIndex(idx) {
+      if (state.currentResults && state.currentResults[idx]) {
+        openVoterModal(state.currentResults[idx]);
+      }
+    }
+
+    function openMapModalByIndex(idx) {
+      if (state.currentResults && state.currentResults[idx]) {
+        openHouseholdMap(state.currentResults[idx].id, state.currentResults[idx]);
+      }
+    }
+
+    let searchSuggestTimeout = null;
+    let activeSuggestIndex = -1;
+    let currentSuggestions = [];
+    let familyTreeHistory = [];
+    let familyTreeForwardHistory = [];
+
+    function handleSearchQueryInput(val) {
+      const clearBtn = document.getElementById('searchClearBtn');
+      if (clearBtn) {
+        if (val && val.trim().length > 0) {
+          clearBtn.classList.remove('hidden');
+        } else {
+          clearBtn.classList.add('hidden');
+        }
+      }
+
+      const box = document.getElementById('searchSuggestionsBox');
+      if (!val || val.trim().length < 2) {
+        if (box) box.classList.add('hidden');
+        currentSuggestions = [];
+        activeSuggestIndex = -1;
+        return;
+      }
+
+      if (searchSuggestTimeout) clearTimeout(searchSuggestTimeout);
+      searchSuggestTimeout = setTimeout(async () => {
+        try {
+          const acVal = document.getElementById('filterAC')?.value || '';
+          const url = `/api/search/suggestions?q=${encodeURIComponent(val.trim())}${acVal ? `&ac_no=${acVal}` : ''}`;
+          const res = await fetch(url);
+          if (!res.ok) return;
+          const data = await res.json();
+          currentSuggestions = data.suggestions || [];
+          activeSuggestIndex = -1;
+          renderSearchSuggestions(data);
+        } catch (e) {
+          console.error("Suggestions error:", e);
+        }
+      }, 150);
+    }
+
+    function clearSearchQueryInput() {
+      const input = document.getElementById('searchQuery');
+      if (input) {
+        input.value = '';
+        input.focus();
+      }
+      const clearBtn = document.getElementById('searchClearBtn');
+      if (clearBtn) clearBtn.classList.add('hidden');
+      const box = document.getElementById('searchSuggestionsBox');
+      if (box) box.classList.add('hidden');
+      currentSuggestions = [];
+      activeSuggestIndex = -1;
+      executeSearch(1);
+    }
+
+    function renderSearchSuggestions(data) {
+      const box = document.getElementById('searchSuggestionsBox');
+      if (!box) return;
+      const list = data.suggestions || [];
+      if (list.length === 0) {
+        box.classList.add('hidden');
+        return;
+      }
+
+      box.innerHTML = list.map((item, idx) => {
+        const isSpell = item.type === 'SPELLING_CORRECTION';
+        return `
+          <div id="suggest-item-${idx}" 
+               class="px-4 py-2.5 hover:bg-emerald-50 cursor-pointer flex items-center justify-between gap-3 transition text-left" 
+               onmousedown="selectSuggestion(${idx})">
+            <div class="min-w-0">
+              <p class="text-sm font-bold ${isSpell ? 'text-amber-800' : 'text-slate-900'} truncate flex items-center gap-1.5">
+                ${isSpell ? '<span class="text-xs">💡</span>' : '<span class="text-xs text-slate-400">🔍</span>'}
+                <span>${item.title || item.text}</span>
+              </p>
+              <p class="text-[11px] text-slate-500 truncate">${item.subtitle || ''}</p>
+            </div>
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${isSpell ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-slate-100 text-slate-700 border border-slate-200'} shrink-0">
+              ${isSpell ? 'Did you mean?' : (item.relative_name ? `s/o ${item.relative_name.split(' ')[0]}` : 'Elector')}
+            </span>
+          </div>
+        `;
+      }).join('');
+      box.classList.remove('hidden');
+    }
+
+    function selectSuggestion(idx) {
+      if (currentSuggestions && currentSuggestions[idx]) {
+        const item = currentSuggestions[idx];
+        const input = document.getElementById('searchQuery');
+        if (input) {
+          input.value = item.text;
+        }
+        const box = document.getElementById('searchSuggestionsBox');
+        if (box) box.classList.add('hidden');
+        executeSearch(1);
+      }
+    }
+
+    function handleSearchQueryKeyDown(event) {
+      const box = document.getElementById('searchSuggestionsBox');
+      if (box && !box.classList.contains('hidden') && currentSuggestions.length > 0) {
+        if (event.key === 'ArrowDown') {
+          event.preventDefault();
+          activeSuggestIndex = (activeSuggestIndex + 1) % currentSuggestions.length;
+          updateActiveSuggestHighlight();
+          return;
+        } else if (event.key === 'ArrowUp') {
+          event.preventDefault();
+          activeSuggestIndex = (activeSuggestIndex - 1 + currentSuggestions.length) % currentSuggestions.length;
+          updateActiveSuggestHighlight();
+          return;
+        } else if (event.key === 'Enter') {
+          event.preventDefault();
+          if (activeSuggestIndex >= 0 && activeSuggestIndex < currentSuggestions.length) {
+            selectSuggestion(activeSuggestIndex);
+          } else {
+            box.classList.add('hidden');
+            executeSearch(1);
+          }
+          return;
+        } else if (event.key === 'Escape') {
+          box.classList.add('hidden');
+          return;
+        }
+      } else if (event.key === 'Enter') {
+        executeSearch(1);
+      }
+    }
+
+    function updateActiveSuggestHighlight() {
+      currentSuggestions.forEach((_, idx) => {
+        const el = document.getElementById(`suggest-item-${idx}`);
+        if (el) {
+          if (idx === activeSuggestIndex) {
+            el.classList.add('bg-emerald-100', 'text-emerald-950');
+            const input = document.getElementById('searchQuery');
+            if (input && currentSuggestions[idx]) {
+              input.value = currentSuggestions[idx].text;
+            }
+          } else {
+            el.classList.remove('bg-emerald-100', 'text-emerald-950');
+          }
+        }
+      });
+    }
+
+    function forceSearchOriginal(q) {
+      const input = document.getElementById('searchQuery');
+      if (input) input.value = q;
+      executeSearch(1);
+    }
+
+    // Close suggestions and recent searches on outside click
+    document.addEventListener('click', (e) => {
+      const box = document.getElementById('searchSuggestionsBox');
+      const recentBox = document.getElementById('recentSearchesBox');
+      const input = document.getElementById('searchQuery');
+      if (box && !box.contains(e.target) && e.target !== input) {
+        box.classList.add('hidden');
+      }
+      if (recentBox && !recentBox.contains(e.target) && e.target !== input) {
+        recentBox.classList.add('hidden');
+      }
+    });
+
+    async function executeSearch(page = 1) {
+      state.currentPage = page;
+      const q = document.getElementById('searchQuery').value.trim();
+      state.lastTypedQuery = q;
+
+      const box = document.getElementById('searchSuggestionsBox');
+      if (box) box.classList.add('hidden');
+      const recentBox = document.getElementById('recentSearchesBox');
+      if (recentBox) recentBox.classList.add('hidden');
+      if (q) saveRecentSearch(q);
+
+      const clearBtn = document.getElementById('searchClearBtn');
+      if (clearBtn) {
+        if (q.length > 0) clearBtn.classList.remove('hidden');
+        else clearBtn.classList.add('hidden');
+      }
+
+      const ac_no = document.getElementById('filterAC').value;
+      const gender = document.getElementById('filterGender').value;
+      const min_age = document.getElementById('filterMinAge') ? document.getElementById('filterMinAge').value : '';
+      const max_age = document.getElementById('filterMaxAge') ? document.getElementById('filterMaxAge').value : '';
+
+      const params = new URLSearchParams({ page, limit: 18 });
+      if (q) params.append('q', q);
+      if (ac_no) params.append('ac_no', ac_no);
+      if (gender) params.append('gender', gender);
+      if (min_age) params.append('min_age', min_age);
+      if (max_age) params.append('max_age', max_age);
+
+      const grid = document.getElementById('voterResultsGrid');
+      grid.innerHTML = '<div class="col-span-full py-12 text-center text-slate-400"><i data-lucide="loader-2" class="w-8 h-8 animate-spin mx-auto mb-2 text-emerald-600"></i><p>Searching voters...</p></div>';
+      lucide.createIcons();
+
+      let data;
+      try {
+        const res = await fetch(`/api/search?${params}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        data = await res.json();
+      } catch (e) {
+        console.error("Search fetch error:", e);
+        grid.innerHTML = '<div class="col-span-full py-8 text-center text-rose-500">Failed to load voters. Please verify backend is running.</div>';
+        return;
+      }
+
+      try {
+        renderResults(data);
+      } catch (e) {
+        console.error("Render error:", e);
+        grid.innerHTML = `<div class="col-span-full py-8 text-center text-rose-500">Error rendering results: ${e.message}</div>`;
+      }
+    }
+
+    function handleAgeBracketChange(val) {
+      if (!val) {
+        if (document.getElementById('filterMinAge')) document.getElementById('filterMinAge').value = '';
+        if (document.getElementById('filterMaxAge')) document.getElementById('filterMaxAge').value = '';
+      } else {
+        const parts = val.split('-');
+        if (document.getElementById('filterMinAge')) document.getElementById('filterMinAge').value = parts[0] || '';
+        if (document.getElementById('filterMaxAge')) document.getElementById('filterMaxAge').value = parts[1] || '';
+      }
+      executeSearch(1);
+    }
+
+    function setAgeBracket(min, max) {
+      if (document.getElementById('filterMinAge')) document.getElementById('filterMinAge').value = min || '';
+      if (document.getElementById('filterMaxAge')) document.getElementById('filterMaxAge').value = max || '';
+      const sel = document.getElementById('filterAgeBracket');
+      if (sel) {
+        if (min === 18 && max === 25) sel.value = '18-25';
+        else if (min === 26 && max === 39) sel.value = '26-39';
+        else if (min === 40 && max === 59) sel.value = '40-59';
+        else if (min === 60 && max === 120) sel.value = '60-120';
+        else sel.value = '';
+      }
+      executeSearch(1);
+    }
+
+    function setQuickSearch(term) {
+      document.getElementById('searchQuery').value = term;
+      executeSearch(1);
+    }
+
+    function clearSearchFilters() {
+      document.getElementById('searchQuery').value = '';
+      document.getElementById('filterAC').value = '';
+      document.getElementById('filterGender').value = '';
+      if (document.getElementById('filterMinAge')) document.getElementById('filterMinAge').value = '';
+      if (document.getElementById('filterMaxAge')) document.getElementById('filterMaxAge').value = '';
+      if (document.getElementById('filterAgeBracket')) document.getElementById('filterAgeBracket').value = '';
+      executeSearch(1);
+    }
+
+    function openVoterModal(voter) {
+      state.activeSlipVoter = voter;
+      const nameText = voter.name || 'N/A';
+      const relNameText = voter.relative_name || 'N/A';
+      const relTypeLabel = `${voter.relation_type || 'Relative'}'s Name`;
+
+      document.getElementById('slip-epic').innerText = voter.epic_no || 'N/A';
+      document.getElementById('slip-ac').innerText = `${voter.ac_no} - ${voter.ac_name || ''}`;
+      document.getElementById('slip-name').innerText = nameText;
+      document.getElementById('slip-reltype-label').innerText = relTypeLabel;
+      document.getElementById('slip-relname').innerText = relNameText;
+      document.getElementById('slip-demog').innerText = `${voter.gender === 'M' ? 'Male' : (voter.gender === 'F' ? 'Female' : 'Other')}, ${voter.age} Years`;
+      document.getElementById('slip-house').innerText = voter.house_no || '-';
+      document.getElementById('slip-part').innerText = `Part No. ${voter.part_no}`;
+      document.getElementById('slip-ps').innerText = voter.polling_station_name || 'Designated Polling Station';
+
+      // Generate 2D Scannable QR Code
+      const qrEl = document.getElementById('slip-qrcode');
+      if (qrEl) {
+        qrEl.innerHTML = '';
+        const qrPayload = `ECI-MANIPUR-SSR2027|AC:${voter.ac_no}|PART:${voter.part_no}|EPIC:${voter.epic_no || 'NA'}|NAME:${voter.name || 'NA'}|HOUSE:${voter.house_no || 'NA'}`;
+        try {
+          if (typeof QRCode !== 'undefined') {
+            new QRCode(qrEl, {
+              text: qrPayload,
+              width: 72,
+              height: 72,
+              colorDark: "#022c22",
+              colorLight: "#ffffff",
+              correctLevel: QRCode.CorrectLevel.M
+            });
+          }
+        } catch (e) {
+          console.error("QR render error:", e);
+        }
+      }
+
+      document.getElementById('voterModal').classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    async function shareActiveVoterSlip() {
+      const v = state.activeSlipVoter;
+      if (!v) return;
+      const text = `🗳️ Manipur ECI Voter Information Slip (SSR 2027)\nName: ${v.name}\nEPIC (Voter ID): ${v.epic_no}\nRelative: ${v.relative_name} (${v.relation_type})\nAge / Gender: ${v.age}y, ${v.gender === 'M' ? 'Male' : 'Female'}\nAC #${v.ac_no}: ${v.ac_name}\nBooth #${v.part_no}: ${v.polling_station_name}\nHouse No.: ${v.house_no || '-'}`;
+      if (navigator.share) {
+        try {
+          await navigator.share({ title: `Voter Slip - ${v.name}`, text: text });
+        } catch (e) {}
+      } else {
+        await navigator.clipboard.writeText(text);
+        alert("Voter slip copied to clipboard!");
+      }
+    }
+
+    function closeModal() {
+      document.getElementById('voterModal').classList.add('hidden');
+    }
+
+    function openFamilyFromSlip() {
+      if (state.activeSlipVoter) {
+        const v = state.activeSlipVoter;
+        closeModal();
+        openFamilyModal(v.id, v.name);
+      }
+    }
+
+    // State for Pedigree Tree & Household Data
+    let currentHouseholdData = null;
+    let currentTreeZoom = 1.0;
+
+    function toggleFamilyView(mode) {
+      const treeView = document.getElementById('ft-pedigree-view');
+      const gridView = document.getElementById('ft-grid-view');
+      const btnTree = document.getElementById('btn-view-tree');
+      const btnGrid = document.getElementById('btn-view-grid');
+      const zoomControls = document.getElementById('tree-zoom-controls');
+
+      if (mode === 'tree') {
+        treeView.classList.remove('hidden');
+        gridView.classList.add('hidden');
+        if (zoomControls) zoomControls.classList.remove('hidden');
+        btnTree.className = "px-2.5 py-1 rounded-md font-semibold bg-white text-slate-800 shadow-xs flex items-center gap-1 transition";
+        btnGrid.className = "px-2.5 py-1 rounded-md font-semibold text-slate-500 hover:text-slate-800 flex items-center gap-1 transition";
+      } else {
+        treeView.classList.add('hidden');
+        gridView.classList.remove('hidden');
+        if (zoomControls) zoomControls.classList.add('hidden');
+        btnGrid.className = "px-2.5 py-1 rounded-md font-semibold bg-white text-slate-800 shadow-xs flex items-center gap-1 transition";
+        btnTree.className = "px-2.5 py-1 rounded-md font-semibold text-slate-500 hover:text-slate-800 flex items-center gap-1 transition";
+      }
+    }
+
+    function zoomFamilyTree(delta) {
+      if (delta === 0) {
+        currentTreeZoom = 1.0;
+      } else {
+        currentTreeZoom = Math.min(2.0, Math.max(0.35, currentTreeZoom + delta));
+      }
+      applyTreeZoom();
+    }
+
+    function fitFamilyTreeToScreen() {
+      const container = document.getElementById('ft-pedigree-view');
+      const canvas = document.getElementById('ft-pedigree-canvas');
+      if (!container || !canvas) return;
+      // Reset transform to measure unscaled natural tree dimensions
+      canvas.style.transform = 'scale(1)';
+      const availableWidth = container.clientWidth - 32;
+      const treeWidth = canvas.scrollWidth || canvas.offsetWidth || 500;
+      if (treeWidth > 0 && availableWidth > 0) {
+        let fit = availableWidth / treeWidth;
+        fit = Math.min(1.0, Math.max(0.35, fit));
+        currentTreeZoom = Math.round(fit * 100) / 100;
+        applyTreeZoom();
+        setTimeout(() => {
+          const scaledWidth = treeWidth * currentTreeZoom;
+          if (scaledWidth > container.clientWidth) {
+            container.scrollLeft = (scaledWidth - container.clientWidth) / 2;
+          } else {
+            container.scrollLeft = 0;
+          }
+        }, 30);
+      }
+    }
+
+    function applyTreeZoom() {
+      const canvas = document.getElementById('ft-pedigree-canvas');
+      const label = document.getElementById('zoom-level-label');
+      if (canvas) canvas.style.transform = `scale(${currentTreeZoom})`;
+      if (label) label.innerText = `${Math.round(currentTreeZoom * 100)}%`;
+    }
+
+    function toggleUnrelatedDrawer() {
+      const drawer = document.getElementById('ft-unrelated-drawer');
+      if (drawer) drawer.classList.toggle('hidden');
+    }
+
+    function togglePedigreeBranch(branchId) {
+      const el = document.getElementById(branchId);
+      if (!el) return;
+      const isHidden = el.classList.contains('hidden');
+      const chevId = branchId.replace('branch-', 'chevron-');
+      const chev = document.getElementById(chevId);
+
+      if (isHidden) {
+        el.classList.remove('hidden');
+        if (chev) chev.innerText = '▴';
+      } else {
+        el.classList.add('hidden');
+        if (chev) chev.innerText = '▾';
+      }
+      setTimeout(fitFamilyTreeToScreen, 60);
+    }
+
+    // Central In-Memory Family Member Cache to eliminate DOM JSON string escaping bugs
+    const familyMemberCache = new Map();
+
+    function openVoterModalByKey(key) {
+      const m = familyMemberCache.get(String(key));
+      if (m && !m.is_deceased) {
+        openVoterModal(m);
+      }
+    }
+
+    function inspectFamilyMemberByKey(key, elem) {
+      const m = familyMemberCache.get(String(key));
+      if (m) {
+        inspectFamilyMember(m, elem);
+      }
+    }
+
+    function focusTreeOnKey(key) {
+      const m = familyMemberCache.get(String(key));
+      if (m && m.id) {
+        openFamilyModal(m.id, m.name);
+      }
+    }
+
+    let currentInspectedMember = null;
+    function inspectFamilyMember(m, elem) {
+      if (!m) return;
+      currentInspectedMember = m;
+
+      // Update top inspector UI defensively
+      const nameEl = document.getElementById('insp-name');
+      if (nameEl) nameEl.innerText = m.name || "--";
+
+      const roleEl = document.getElementById('insp-role-badge');
+      if (roleEl) {
+        roleEl.innerText = m.relationship_label || "Member";
+      }
+
+      const houseValEl = document.getElementById('insp-house-val');
+      if (houseValEl) {
+        houseValEl.innerText = m.house_no ? `House #${m.house_no}` : 'House #--';
+      }
+
+      const isDeceased = m.is_deceased === true;
+      const isFemale = m.gender === 'F';
+      const ageLabel = isDeceased ? 'Deceased' : `${m.age || '--'} yrs`;
+      const ageGenEl = document.getElementById('insp-age-gender');
+      if (ageGenEl) ageGenEl.innerText = `${ageLabel} • ${isFemale ? 'Female' : 'Male'}`;
+
+      // Update children count badge in inspector
+      const chBadge = document.getElementById('insp-children-badge');
+      const chVal = document.getElementById('insp-children-val');
+      if (chBadge && chVal) {
+        if (isDeceased) {
+          chBadge.classList.add('hidden');
+        } else {
+          chBadge.classList.remove('hidden');
+          const t = currentHouseholdData ? currentHouseholdData.target : null;
+          const b = currentHouseholdData ? (currentHouseholdData.branches || {}) : {};
+          let chCount = 0;
+          let branchId = null;
+          if (t && m.id === t.id) {
+            chCount = (b.children || []).length;
+            branchId = 'branch-target-children';
+          } else if (b.children && b.children.some(c => c.id === m.id)) {
+            const gcs = (b.grandchildren || []).filter(gc => gc.child_of_id === m.id);
+            chCount = gcs.length;
+            branchId = `branch-child-${m.id}`;
+          } else {
+            const nephews = b.nephews_nieces || [];
+            chCount = nephews.filter(n => n.child_of_id === m.id).length;
+            branchId = `branch-sib-${m.id}`;
+          }
+
+          if (chCount > 0) {
+            chVal.innerText = `👶 ${chCount} Elector Children`;
+            chBadge.className = "text-[10px] font-bold px-2.5 py-0.5 rounded-lg bg-emerald-500/25 text-emerald-300 border border-emerald-400/40 flex items-center gap-1 shadow-xs cursor-pointer hover:bg-emerald-500/40 transition";
+            chBadge.title = "Click to toggle branch out / in";
+            chBadge.onclick = () => { if (branchId) togglePedigreeBranch(branchId); };
+          } else {
+            chVal.innerText = `👶 0 Registered Children (May be minors <18y)`;
+            chBadge.className = "text-[10px] font-bold px-2.5 py-0.5 rounded-lg bg-slate-700/60 text-slate-300 border border-slate-600/40 flex items-center gap-1 shadow-xs";
+            chBadge.title = "No electors aged ≥18 registered under this parent in roll";
+            chBadge.onclick = null;
+          }
+        }
+      }
+
+      // If user clicked this card and it has an associated collapsible branch, toggle it
+      if (elem && elem.dataset && elem.dataset.branchId) {
+        togglePedigreeBranch(elem.dataset.branchId);
+      }
+
+      const relName = m.relative_name;
+      const relType = m.relation_type;
+      const relLabel = relType ? `${relType}: ${relName || '--'}` : (relName ? `Relative: ${relName}` : '--');
+      const relEl = document.getElementById('insp-relative');
+      if (relEl) relEl.innerText = relLabel;
+
+      const epicEl = document.getElementById('insp-epic');
+      if (epicEl) {
+        if (m.epic_no && !isDeceased) {
+          epicEl.innerText = m.epic_no;
+          epicEl.classList.remove('hidden');
+        } else {
+          epicEl.innerText = isDeceased ? "Recorded in Roll" : "--";
+        }
+      }
+
+      const addr = `House #${m.house_no || '--'} • Part ${m.part_no || '--'} • AC ${m.ac_no || '--'} ${m.ac_name ? `(${m.ac_name})` : ''} • Section: ${m.section_name || '1'}`;
+      const addrEl = document.getElementById('insp-address');
+      if (addrEl) addrEl.innerText = addr;
+
+      const auditEl = document.getElementById('insp-audit-badge');
+      if (auditEl) {
+        if (isDeceased) {
+          auditEl.innerText = "🕊️ Ancestral Record";
+          auditEl.className = "text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-700 text-slate-300 border border-slate-600";
+        } else if (m.audit_tier === 'SILVER_SPLIT_BOOTH' || m.audit_tier === 'GOLD_SAME_BOOTH_CLUSTER') {
+          auditEl.innerText = "🟡 Verified Booth Split";
+          auditEl.className = "text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40";
+        } else {
+          auditEl.innerText = "🟢 100% Verified";
+          auditEl.className = "text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40";
+        }
+      }
+
+      // Update Google Maps button directly to coordinate location
+      const gmapsBtn = document.getElementById('insp-btn-gmaps');
+      const geo = (m && (m.polling_station_geo || m.household_geo)) || (currentHouseholdData && (currentHouseholdData.polling_station_geo || currentHouseholdData.household_geo)) || null;
+      if (geo && gmapsBtn) {
+        const gUrl = geo.google_maps_coord_url || (geo.latitude ? `https://www.google.com/maps?q=${geo.latitude},${geo.longitude}` : 'https://www.google.com/maps');
+        gmapsBtn.href = gUrl;
+        if (gmapsBtn.setAttribute) gmapsBtn.setAttribute('data-url', gUrl);
+        gmapsBtn.classList.remove('hidden');
+      } else if (gmapsBtn) {
+        gmapsBtn.classList.remove('hidden');
+      }
+
+      // Update action button states
+      const focusBtn = document.getElementById('insp-btn-focus');
+      const slipBtn = document.getElementById('insp-btn-slip');
+      if (isDeceased || !m.id) {
+        if (focusBtn) focusBtn.classList.add('hidden');
+        if (slipBtn) slipBtn.classList.add('hidden');
+      } else {
+        if (focusBtn) focusBtn.classList.remove('hidden');
+        if (slipBtn) slipBtn.classList.remove('hidden');
+      }
+
+      // Highlight the active node card in the tree
+      document.querySelectorAll('.pedigree-node-card').forEach(c => c.classList.remove('ring-4', 'ring-amber-400', 'ring-offset-2', 'rounded-2xl'));
+      if (elem && elem.classList) {
+        elem.classList.add('ring-4', 'ring-amber-400', 'ring-offset-2', 'rounded-2xl');
+      }
+      lucide.createIcons();
+    }
+
+    function openDirectGoogleMaps(event) {
+      if (event) event.preventDefault();
+      const geo = (currentInspectedMember && (currentInspectedMember.polling_station_geo || currentInspectedMember.household_geo)) || 
+                  (currentHouseholdData && (currentHouseholdData.polling_station_geo || currentHouseholdData.household_geo));
+      if (geo && geo.google_maps_coord_url) {
+        window.open(geo.google_maps_coord_url, '_blank', 'noopener,noreferrer');
+      } else if (geo && geo.latitude && geo.longitude) {
+        const url = `https://www.google.com/maps?q=${geo.latitude},${geo.longitude}`;
+        window.open(url, '_blank', 'noopener,noreferrer');
+      } else if (geo && geo.google_maps_url) {
+        window.open(geo.google_maps_url, '_blank', 'noopener,noreferrer');
+      } else {
+        const t = currentHouseholdData ? currentHouseholdData.target : null;
+        if (t && t.id) {
+          fetch(`/api/voter/${t.id}/household_map`)
+            .then(r => r.json())
+            .then(d => {
+              const url = d.polling_station?.google_maps_coord_url || (d.polling_station?.latitude ? `https://www.google.com/maps?q=${d.polling_station.latitude},${d.polling_station.longitude}` : 'https://www.google.com/maps');
+              window.open(url, '_blank', 'noopener,noreferrer');
+            }).catch(() => {
+              window.open('https://www.google.com/maps', '_blank', 'noopener,noreferrer');
+            });
+        } else {
+          window.open('https://www.google.com/maps', '_blank', 'noopener,noreferrer');
+        }
+      }
+    }
+
+    function openDirectMapModalGoogleMaps(event) {
+      if (event) event.preventDefault();
+      const ps = currentMapData?.polling_station;
+      const bLabel = encodeURIComponent(ps?.building_name || ps?.name || 'Designated Polling Station');
+      if (ps && ps.google_maps_coord_url) {
+        window.open(ps.google_maps_coord_url, '_blank', 'noopener,noreferrer');
+      } else if (ps && ps.google_maps_url) {
+        window.open(ps.google_maps_url, '_blank', 'noopener,noreferrer');
+      } else if (ps && ps.latitude) {
+        window.open(`https://www.google.com/maps?q=loc:${ps.latitude},${ps.longitude}+(${bLabel})`, '_blank', 'noopener,noreferrer');
+      } else {
+        window.open('https://www.google.com/maps', '_blank', 'noopener,noreferrer');
+      }
+    }
+
+    function openDirectMapModalDirections(event) {
+      if (event) event.preventDefault();
+      const ps = currentMapData?.polling_station;
+      if (ps && ps.google_maps_directions_url) {
+        window.open(ps.google_maps_directions_url, '_blank', 'noopener,noreferrer');
+      } else if (ps && ps.latitude) {
+        window.open(`https://www.google.com/maps/dir/?api=1&destination=${ps.latitude},${ps.longitude}`, '_blank', 'noopener,noreferrer');
+      } else {
+        window.open('https://www.google.com/maps', '_blank', 'noopener,noreferrer');
+      }
+    }
+
+    function openHouseholdMapForInspectedMember() {
+      if (currentInspectedMember && currentInspectedMember.id) {
+        openHouseholdMap(currentInspectedMember.id);
+      } else if (currentHouseholdData && currentHouseholdData.target) {
+        openHouseholdMap(currentHouseholdData.target.id);
+      }
+    }
+
+    function focusTreeOnInspectedMember() {
+      if (currentInspectedMember && currentInspectedMember.id) {
+        openFamilyModal(currentInspectedMember.id, currentInspectedMember.name);
+      }
+    }
+
+    function openSlipForInspectedMember() {
+      if (currentInspectedMember && currentInspectedMember.id) {
+        openVoterModal(currentInspectedMember);
+      }
+    }
+
+    function copyInspEpic() {
+      if (currentInspectedMember && currentInspectedMember.epic_no) {
+        navigator.clipboard.writeText(currentInspectedMember.epic_no);
+        alert(`Copied EPIC: ${currentInspectedMember.epic_no}`);
+      }
+    }
+
+    // Interactive Family Tree Modal Logic
+    async function openFamilyModal(voterId, voterName, isBackNavigation = false) {
+      if (!isBackNavigation && currentHouseholdData && currentHouseholdData.target && currentHouseholdData.target.id && currentHouseholdData.target.id !== voterId) {
+        familyTreeHistory.push({
+          id: currentHouseholdData.target.id,
+          name: currentHouseholdData.target.name
+        });
+        familyTreeForwardHistory = [];
+      }
+
+      // Update Back Button in Header
+      const backBtn = document.getElementById('ft-back-btn');
+      const backLabel = document.getElementById('ft-back-label');
+      if (familyTreeHistory.length > 0) {
+        const prev = familyTreeHistory[familyTreeHistory.length - 1];
+        const shortName = prev.name ? prev.name.split(' ')[0] : 'Previous';
+        if (backLabel) backLabel.innerText = `Back to ${shortName}`;
+        if (backBtn) {
+          backBtn.classList.remove('hidden');
+          backBtn.title = `Return to ${prev.name}'s family tree`;
+        }
+      } else if (backBtn) {
+        backBtn.classList.add('hidden');
+      }
+
+      // Update Forward Button in Header
+      const fwdBtn = document.getElementById('ft-fwd-btn');
+      if (fwdBtn) {
+        if (familyTreeForwardHistory.length > 0) {
+          fwdBtn.classList.remove('hidden');
+        } else {
+          fwdBtn.classList.add('hidden');
+        }
+      }
+
+      state.activeVoterId = voterId;
+      const modal = document.getElementById('familyModal');
+      document.getElementById('ft-target-name').innerText = voterName || "Loading Elector...";
+      document.getElementById('ft-target-meta').innerText = "Traversing 3-generation lineage and verified biological family...";
+      document.getElementById('ft-total-count').innerText = "...";
+      if (document.getElementById('ft-head-name')) document.getElementById('ft-head-name').innerText = "...";
+
+      // Reset views
+      toggleFamilyView('tree');
+      zoomFamilyTree(0);
+      const canvas = document.getElementById('ft-pedigree-canvas');
+      if (canvas) canvas.innerHTML = '<div class="py-16 text-center text-slate-400"><i data-lucide="loader-2" class="w-8 h-8 animate-spin mx-auto mb-2 text-emerald-600"></i><p>Reconstructing verified biological pedigree graph...</p></div>';
+
+      // Pure biological sections (no unrelated cohabitants under Option 1)
+      const sections = ['grandparents', 'parents', 'uncles', 'spouses', 'siblings', 'cousins', 'children', 'nephews'];
+      sections.forEach(sec => {
+        const elSec = document.getElementById(`ft-${sec}-section`);
+        const elGrid = document.getElementById(`ft-${sec}-grid`);
+        if (elSec) elSec.classList.add('hidden');
+        if (elGrid) elGrid.innerHTML = '';
+      });
+
+      modal.classList.remove('hidden');
+      lucide.createIcons();
+
+      try {
+        const res = await fetch(`/api/voter/${voterId}/family`);
+        if (!res.ok) throw new Error("Failed to fetch family tree from server");
+        const data = await res.json();
+        currentHouseholdData = data;
+        const t = data.target || {};
+        const b = data.branches || {};
+        const head = data.head_of_household;
+        const headId = head ? head.id : null;
+
+        // Populate in-memory familyMemberCache
+        familyMemberCache.clear();
+        if (t && t.id) familyMemberCache.set(String(t.id), t);
+        if (head && head.id) familyMemberCache.set(String(head.id), head);
+        for (const list of Object.values(b)) {
+          if (Array.isArray(list)) {
+            list.forEach(m => {
+              if (m) {
+                const k = String(m.id || (m.name ? 'anc_' + m.name : Math.random()));
+                familyMemberCache.set(k, m);
+              }
+            });
+          }
+        }
+
+        const tagEl = document.getElementById('ft-household-tag');
+        if (tagEl) tagEl.innerText = data.household_id || `AC-${t.ac_no || '--'} / Part-${t.part_no || '--'} / House-${t.house_no || '--'}`;
+        const nameEl = document.getElementById('ft-target-name');
+        if (nameEl) nameEl.innerText = t.name || 'Target Elector';
+        const metaEl = document.getElementById('ft-target-meta');
+        if (metaEl) {
+          const relName = t.relative_name;
+          const relType = t.relation_type;
+          metaEl.innerText = `Age: ${t.age || '--'}y • Gender: ${t.gender === 'M' ? 'Male' : (t.gender === 'F' ? 'Female' : 'Other')} • EPIC: ${t.epic_no || '--'} • ${relType || 'Relative'}: ${relName || 'N/A'}`;
+        }
+        const cntEl = document.getElementById('ft-total-count');
+        if (cntEl) cntEl.innerText = `${data.total_lineage_count || 1} Electors`;
+        const headEl = document.getElementById('ft-head-name');
+        if (headEl) {
+          headEl.innerText = head ? `${head.name} (${head.age}y)` : 'Not Determined';
+        }
+
+        // Initialize Top Member Details Inspector first with target elector
+        inspectFamilyMember(t);
+
+        // Render Pedigree Tree View with safe error handling
+        try {
+          renderVisualPedigreeTree(data);
+        } catch (treeErr) {
+          console.error("renderVisualPedigreeTree failed:", treeErr);
+          toggleFamilyView('grid');
+        }
+
+        // Render Detailed Grid Cards View (Alternate View)
+        function createMinimalCard(m, defaultRole, badgeBg, isTarget = false) {
+          if (!m) return '';
+          const isDel = m.status === 'DELETED';
+          const isDeceased = m.is_deceased === true;
+          const isHead = headId && m.id === headId;
+          const role = isTarget ? 'Self (Target)' : (m.relationship_label || defaultRole);
+          const ageDisplay = isDeceased ? 'Deceased' : `${m.age || '--'}y`;
+          const key = String(m.id || (m.name ? 'anc_' + m.name : 'temp'));
+
+          return `
+            <div class="p-3 rounded-xl border ${isTarget ? 'border-amber-500 ring-2 ring-amber-300 bg-amber-50/60' : 'border-slate-200 bg-white hover:border-amber-400 hover:bg-amber-50/20'} transition flex items-center justify-between shadow-sm group">
+              <div class="space-y-0.5 min-w-0 pr-2">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${isTarget ? 'bg-amber-600 text-white' : badgeBg}">${role}</span>
+                  ${isHead ? '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-800 border border-yellow-300 flex items-center gap-0.5">👑 Head</span>' : ''}
+                  ${isDeceased ? '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-300">🕊️ Ancestor</span>' : ''}
+                  ${isDel ? '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-800">🚫 Deleted</span>' : ''}
+                </div>
+                <h5 class="text-xs sm:text-sm font-bold ${isDel ? 'line-through text-slate-400' : 'text-slate-900'} break-words mt-1" title="${m.name || ''}">${m.name || 'Unnamed'}</h5>
+                <p class="text-[11px] text-slate-500 flex items-center gap-1 flex-wrap">
+                  <span>${m.gender === 'M' ? 'Male' : (m.gender === 'F' ? 'Female' : 'Other')}</span>
+                  <span>•</span>
+                  <span class="font-semibold text-slate-700">${ageDisplay}</span>
+                  <span class="text-slate-400 font-mono text-[10px]">(${m.house_no ? 'H.' + m.house_no : 'Compound'})</span>
+                </p>
+              </div>
+              <div class="flex items-center gap-1">
+                ${!isDeceased ? `
+                  <button onclick="openVoterModalByKey('${key}')" class="p-1.5 text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition" title="View Voter Slip">
+                    <i data-lucide="id-card" class="w-4 h-4"></i>
+                  </button>
+                  ${m.id ? `
+                    <button onclick="openFamilyModal(${m.id}, '${(m.name || '').replace(/'/g, "")}')" class="p-1.5 text-slate-400 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition" title="Focus Tree On This Person">
+                      <i data-lucide="network" class="w-4 h-4"></i>
+                    </button>
+                  ` : ''}
+                ` : ''}
+              </div>
+            </div>
+          `;
+        }
+
+        // Populate Alternate Grid View
+        const grandparents = b.grandparents || [];
+        if (grandparents.length > 0) {
+          document.getElementById('ft-grandparents-section').classList.remove('hidden');
+          document.getElementById('ft-grandparents-grid').innerHTML = grandparents.map(m => createMinimalCard(m, 'Grandparent', 'bg-amber-100 text-amber-900 border border-amber-200')).join('');
+        }
+
+        const parents = b.parents || [];
+        if (parents.length > 0) {
+          document.getElementById('ft-parents-section').classList.remove('hidden');
+          document.getElementById('ft-parents-grid').innerHTML = parents.map(m => createMinimalCard(m, 'Parent', 'bg-blue-100 text-blue-900 border border-blue-200')).join('');
+        }
+
+        const uncles = b.uncles_aunts || [];
+        if (uncles.length > 0) {
+          document.getElementById('ft-uncles-section').classList.remove('hidden');
+          document.getElementById('ft-uncles-grid').innerHTML = uncles.map(m => createMinimalCard(m, 'Uncle/Aunt', 'bg-indigo-100 text-indigo-900 border border-indigo-200')).join('');
+        }
+
+        const spouses = b.spouses || [];
+        if (spouses.length > 0) {
+          document.getElementById('ft-spouses-section').classList.remove('hidden');
+          document.getElementById('ft-spouses-grid').innerHTML = spouses.map(m => createMinimalCard(m, 'Spouse', 'bg-pink-100 text-pink-900 border border-pink-200')).join('');
+        }
+
+        const siblings = b.siblings || [];
+        document.getElementById('ft-siblings-section').classList.remove('hidden');
+        let sibHtml = createMinimalCard(t, 'Self (Target)', 'bg-amber-600 text-white', true);
+        if (siblings.length > 0) {
+          sibHtml += siblings.map(m => createMinimalCard(m, 'Sibling', 'bg-purple-100 text-purple-900 border border-purple-200')).join('');
+        }
+        if (b.siblings_spouses && b.siblings_spouses.length > 0) {
+          sibHtml += b.siblings_spouses.map(m => createMinimalCard(m, 'In-Law', 'bg-pink-100 text-pink-900 border border-pink-200')).join('');
+        }
+        document.getElementById('ft-siblings-grid').innerHTML = sibHtml;
+
+        const cousins = b.cousins || [];
+        if (cousins.length > 0) {
+          document.getElementById('ft-cousins-section').classList.remove('hidden');
+          document.getElementById('ft-cousins-grid').innerHTML = cousins.map(m => createMinimalCard(m, 'Cousin', 'bg-teal-100 text-teal-900 border border-teal-200')).join('');
+        }
+
+        const children = b.children || [];
+        const inLaws = b.children_in_law || [];
+        const grandKids = b.grandchildren || [];
+        if (children.length > 0 || inLaws.length > 0 || grandKids.length > 0) {
+          document.getElementById('ft-children-section').classList.remove('hidden');
+          let chHtml = children.map(m => createMinimalCard(m, 'Child', 'bg-emerald-100 text-emerald-900 border border-emerald-200')).join('');
+          if (inLaws.length > 0) chHtml += inLaws.map(m => createMinimalCard(m, 'In-Law', 'bg-pink-100 text-pink-900 border border-pink-200')).join('');
+          if (grandKids.length > 0) chHtml += grandKids.map(m => createMinimalCard(m, 'Grandchild', 'bg-teal-100 text-teal-900 border border-teal-200')).join('');
+          document.getElementById('ft-children-grid').innerHTML = chHtml;
+        }
+
+        const nephews = b.nephews_nieces || [];
+        const nephewsSec = document.getElementById('ft-nephews-section');
+        const nephewsGrid = document.getElementById('ft-nephews-grid');
+        if (nephews.length > 0 && nephewsSec && nephewsGrid) {
+          nephewsSec.classList.remove('hidden');
+          nephewsGrid.innerHTML = nephews.map(m => createMinimalCard(m, m.relationship_label || 'Nephew/Niece', 'bg-indigo-100 text-indigo-900 border border-indigo-200')).join('');
+        } else if (nephewsSec) {
+          nephewsSec.classList.add('hidden');
+        }
+
+        lucide.createIcons();
+        setTimeout(fitFamilyTreeToScreen, 60);
+      } catch (err) {
+        console.error("Family Modal load error:", err);
+        document.getElementById('ft-target-meta').innerText = "Unable to load family cohort data.";
+        if (canvas) {
+          canvas.innerHTML = `
+            <div class="py-16 text-center text-slate-500">
+              <i data-lucide="alert-circle" class="w-10 h-10 mx-auto mb-3 text-amber-500"></i>
+              <h5 class="text-sm font-bold text-slate-700">Family Tree Data Unavailable</h5>
+              <p class="text-xs text-slate-400 mt-1 max-w-sm mx-auto">Could not retrieve genealogical links for this elector.</p>
+              <button onclick="openFamilyModal(${voterId}, '${voterName}')" class="mt-4 px-4 py-1.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs transition shadow-sm">Retry Load</button>
+            </div>
+          `;
+          lucide.createIcons();
+        }
+      }
+    }
+
+    // Visual Pedigree Tree Generator (Matching Reference Image)
+    function renderVisualPedigreeTree(data) {
+      const canvas = document.getElementById('ft-pedigree-canvas');
+      if (!canvas) return;
+      canvas.innerHTML = '';
+
+      const t = data.target || {};
+      const b = data.branches || {};
+      const head = data.head_of_household;
+      const headId = head ? head.id : null;
+      const siblings = b.siblings || [];
+      const gen3Count = 1 + siblings.length;
+
+      function renderAvatarCard(m, roleName, isTarget = false, branchId = null) {
+        if (!m) return '';
+        const isDeceased = m.is_deceased === true;
+        const isHead = headId && m.id === headId;
+        const isDel = m.status === 'DELETED';
+        const isFemale = m.gender === 'F';
+        const isMale = m.gender === 'M';
+        const role = isTarget ? '⭐ Self (Target)' : (m.relationship_label || roleName);
+        const displayName = m.name || '';
+        const ageLabel = isDeceased ? 'Deceased' : `${m.age || '--'}y`;
+        const key = String(m.id || (m.name ? 'anc_' + m.name : 'temp'));
+        familyMemberCache.set(key, m);
+
+        // Styling based on role and gender
+        let ringColor = isFemale ? 'border-pink-400 bg-pink-50/70 text-pink-600' : 'border-blue-400 bg-blue-50/70 text-blue-600';
+        let badgeColor = isFemale ? 'bg-pink-100 text-pink-900 border-pink-200' : 'bg-blue-100 text-blue-900 border-blue-200';
+
+        if (isTarget) {
+          ringColor = 'border-amber-500 ring-4 ring-amber-200 bg-amber-50 text-amber-700';
+          badgeColor = 'bg-amber-600 text-white border-amber-600';
+        } else if (isHead) {
+          ringColor = 'border-yellow-500 ring-2 ring-yellow-200 bg-yellow-50 text-yellow-800';
+          badgeColor = 'bg-yellow-100 text-yellow-900 border-yellow-300';
+        } else if (isDeceased) {
+          ringColor = 'border-slate-300 border-dashed bg-slate-100 text-slate-400';
+          badgeColor = 'bg-slate-200 text-slate-600 border-slate-300';
+        }
+
+        const nameLength = displayName.length;
+        const nameFontSize = nameLength > 22 ? 'text-[10px] sm:text-[10.5px] leading-tight tracking-tight' : (nameLength > 15 ? 'text-[11px] leading-tight' : 'text-[12px] leading-snug');
+
+        return `
+          <div class="pedigree-node-card group cursor-pointer transition-all duration-150 hover:shadow-md" ${branchId ? `data-branch-id="${branchId}"` : ''} onclick="inspectFamilyMemberByKey('${key}', this)">
+            <div class="relative">
+              <div class="pedigree-avatar-circle border-2 ${ringColor}">
+                <svg class="w-7 h-7 sm:w-8 sm:h-8" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                </svg>
+                ${isHead ? '<span class="absolute -top-1 -right-1 text-xs">👑</span>' : ''}
+                ${isTarget ? '<span class="absolute -top-1 -right-1 text-xs">⭐</span>' : ''}
+              </div>
+            </div>
+            <span class="mt-1.5 text-[9px] font-bold px-2 py-0.5 rounded-full border ${badgeColor} shadow-2xs text-center">${role}</span>
+            <h5 class="${nameFontSize} font-bold ${isDel ? 'line-through text-slate-400' : 'text-slate-900'} mt-1 break-words line-clamp-2 min-h-[28px] flex items-center justify-center text-center px-0.5" title="${m.name || ''}">${displayName}</h5>
+            <p class="text-[10.5px] font-semibold text-slate-600">${ageLabel} • ${isFemale ? 'F' : 'M'}${m.house_no ? ` • H.${m.house_no}` : ''}</p>
+            ${m.epic_no && !isDeceased ? `<p class="text-[9.5px] text-slate-500 font-mono font-medium">${m.epic_no}</p>` : ''}
+            ${!isDeceased ? `
+              <div class="mt-1.5 flex items-center justify-center gap-1.5 flex-wrap">
+                <span class="text-[8px] font-bold px-1.5 py-0.5 rounded ${m.audit_tier === 'SILVER_SPLIT_BOOTH' ? 'bg-amber-100 text-amber-900 border border-amber-200' : (m.audit_tier === 'GOLD_SAME_BOOTH_CLUSTER' ? 'bg-amber-100 text-amber-900 border border-amber-200' : 'bg-emerald-100 text-emerald-900 border border-emerald-200')}" title="${m.audit_tier === 'SILVER_SPLIT_BOOTH' ? 'Verified Split-Booth Household' : (m.audit_tier === 'GOLD_SAME_BOOTH_CLUSTER' ? 'Verified Polling Booth Cluster' : '100% Verified Co-Resident Household')}">
+                  ${m.audit_tier === 'SILVER_SPLIT_BOOTH' ? '🟡 Split' : (m.audit_tier === 'GOLD_SAME_BOOTH_CLUSTER' ? '🟡 Cluster' : '🟢 Verified')}
+                </span>
+                ${m.id ? `
+                  <button type="button" onclick="event.stopPropagation(); openVoterModalByKey('${key}')" class="px-2 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded text-[9px] font-extrabold flex items-center gap-1 shadow-2xs hover:scale-105 transition cursor-pointer" title="Open Official ECI Voter Information Slip">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect width="18" height="14" x="3" y="5" rx="2"/><path d="M7 15h4M15 15h2M7 11h2M13 11h4"/></svg>
+                    <span>Card</span>
+                  </button>
+                  ${!isTarget ? `
+                    <button type="button" onclick="event.stopPropagation(); focusTreeOnKey('${key}')" class="px-2 py-0.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded text-[9px] font-extrabold flex items-center gap-1 shadow-2xs hover:scale-105 transition cursor-pointer" title="Focus Family Tree on ${m.name}">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="3"/><circle cx="19" cy="5" r="2"/><circle cx="5" cy="5" r="2"/><path d="M12 9V5m7 2l-5 4m-4-4l-5 4"/></svg>
+                      <span>Tree</span>
+                    </button>
+                  ` : ''}
+                ` : ''}
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }
+
+      let html = '';
+
+      // TIER 1: DUAL GRANDPARENTS (Generation 1: Paternal & Maternal Ancestry)
+      const paternal = b.paternal_grandparents || b.grandparents || [];
+      const maternal = b.maternal_grandparents || [];
+      const maidenClan = data.mother_maiden_clan || 'Maternal';
+
+      if (paternal.length > 0 || maternal.length > 0) {
+        const titleGen1 = (paternal.length > 0 && maternal.length > 0)
+          ? 'Generation 1 • Paternal & Maternal Ancestry'
+          : (paternal.length > 0 ? 'Generation 1 • Paternal Ancestry' : `Generation 1 • Maternal Lineage (${maidenClan})`);
+
+        html += `
+          <div class="flex flex-col items-center">
+            <span class="text-[10px] font-extrabold uppercase tracking-wider text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200 mb-2">
+              ${titleGen1}
+            </span>
+            <div class="flex flex-wrap items-center justify-center gap-3 sm:gap-6">
+              <!-- Paternal Grandparents -->
+              ${paternal.length > 0 ? `
+              <div class="flex flex-col items-center p-2 rounded-2xl bg-amber-50/40 border border-amber-200/80 shadow-xs">
+                <span class="text-[9px] font-extrabold text-amber-800 uppercase tracking-wider mb-1.5 flex items-center gap-1">🏛️ Paternal Ancestry</span>
+                <div class="flex items-center gap-2">
+                  ${paternal.map(g => renderAvatarCard(g, g.gender === 'F' ? 'Paternal Grandma' : 'Paternal Grandpa')).join('')}
+                </div>
+              </div>` : ''}
+
+              <!-- Maternal Grandparents (Strict Zero Hallucination: Render only if verified) -->
+              ${maternal.length > 0 ? `
+              <div class="flex flex-col items-center p-2 rounded-2xl bg-pink-50/40 border border-pink-200/80 shadow-xs">
+                <span class="text-[9px] font-extrabold text-pink-800 uppercase tracking-wider mb-1.5 flex items-center gap-1">🌸 Maternal Lineage (${maidenClan})</span>
+                <div class="flex items-center gap-2">
+                  ${maternal.map(g => renderAvatarCard(g, g.gender === 'F' ? 'Maternal Grandma' : 'Maternal Grandpa')).join('')}
+                </div>
+              </div>` : ''}
+            </div>
+            <div class="pedigree-drop-stem"></div>
+          </div>
+        `;
+      }
+
+      // TIER 2: PARENTS (Generation 2)
+      const parents = b.parents || [];
+      if (parents.length > 0) {
+        html += '<div class="flex flex-col items-center"><span class="text-[10px] font-extrabold uppercase tracking-wider text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200 mb-2">Generation 2 • Parents</span><div class="pedigree-row">';
+        if (parents.length >= 2) {
+          const father = parents.find(p => p.gender === 'M') || parents[0];
+          const mother = parents.find(p => p.gender === 'F') || parents[1];
+          html += `
+            <div class="pedigree-couple-box">
+              <div class="pedigree-couple-line"></div>
+              <span class="pedigree-couple-badge">💍</span>
+              ${renderAvatarCard(father, 'Father')}
+              ${renderAvatarCard(mother, 'Mother')}
+            </div>
+          `;
+        } else {
+          html += `<div class="bg-white p-2 rounded-2xl border border-slate-200 shadow-xs">${renderAvatarCard(parents[0], parents[0].gender === 'F' ? 'Mother' : 'Father')}</div>`;
+        }
+        html += '</div><div class="pedigree-drop-stem"></div></div>';
+      }
+
+      // TIER 3: NUCLEAR GENERATION & SIBLING BRANCHING (Generation 3 & 4)
+      const sibSpouses = b.siblings_spouses || [];
+      const spouses = b.spouses || [];
+      const hasSpouse = spouses.length > 0;
+      const nephewsNieces = b.nephews_nieces || [];
+      const children = b.children || [];
+      const childrenInLaw = b.children_in_law || [];
+      const grandchildren = b.grandchildren || [];
+
+      function renderSiblingBranch(s) {
+        const spouse = sibSpouses.find(sp => {
+          if (sp.spouse_of_id && sp.spouse_of_id === s.id) return true;
+          if (!sp.relative_name) return false;
+          const clean = str => (str || '').toLowerCase().replace(/\b(shri|smt|late|mr|mrs|singh|devi)\b/g, '').trim();
+          const rClean = clean(sp.relative_name);
+          const sClean = clean(s.name);
+          return rClean && sClean && (rClean === sClean || rClean.includes(sClean) || sClean.includes(rClean));
+        });
+        const sChildren = nephewsNieces.filter(n => n.child_of_id === s.id);
+        const branchId = sChildren.length > 0 ? `branch-sib-${s.id}` : null;
+
+        let sBox = '';
+        if (spouse) {
+          sBox = `
+            <div class="pedigree-couple-box">
+              <div class="pedigree-couple-line"></div>
+              <span class="pedigree-couple-badge">💍</span>
+              ${renderAvatarCard(s, s.relationship_label || (s.gender === 'F' ? 'Sister' : 'Brother'), false, branchId)}
+              ${renderAvatarCard(spouse, spouse.relationship_label || (spouse.gender === 'F' ? 'Sister-in-Law' : 'Brother-in-Law'))}
+            </div>
+          `;
+        } else {
+          sBox = `<div class="bg-white p-2 rounded-2xl border border-slate-200 shadow-xs">${renderAvatarCard(s, s.relationship_label || (s.gender === 'F' ? 'Sister' : 'Brother'), false, branchId)}</div>`;
+        }
+
+        return `
+          <div class="flex flex-col items-center">
+            ${gen3Count > 1 ? '<div class="w-0.5 h-6 bg-slate-400"></div>' : ''}
+            ${sBox}
+            ${sChildren.length > 0 ? `
+              <div class="mt-1 flex flex-col items-center">
+                <button type="button" onclick="event.stopPropagation(); togglePedigreeBranch('branch-sib-${s.id}')" id="btn-toggle-sib-${s.id}" class="text-[9.5px] font-extrabold px-2.5 py-0.5 rounded-full bg-indigo-100 hover:bg-indigo-200 text-indigo-900 border border-indigo-300 shadow-2xs flex items-center gap-1 transition-all cursor-pointer" title="Click to branch in / out">
+                  <span>👶 ${sChildren.length} Children</span>
+                  <span id="chevron-sib-${s.id}" class="font-bold text-[10px]">▴</span>
+                </button>
+                <div id="branch-sib-${s.id}" class="pedigree-branch-collapsible flex flex-col items-center transition-all duration-300">
+                  <div class="pedigree-drop-stem"></div>
+                  <div class="flex flex-col items-center p-2 rounded-2xl bg-indigo-50/50 border border-indigo-200 shadow-xs">
+                    <span class="text-[9px] font-extrabold text-indigo-800 uppercase tracking-wider mb-1 flex items-center gap-1">
+                      <span>👶 ${s.gender === 'F' ? "Sister's" : "Brother's"} Children (${sChildren.length})</span>
+                    </span>
+                    <div class="flex flex-wrap items-center justify-center gap-2">
+                      ${sChildren.map(c => renderAvatarCard(c, c.relationship_label || (c.gender === 'F' ? 'Niece' : 'Nephew'))).join('')}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ` : `
+              <div class="mt-1">
+                <span class="text-[8px] font-semibold text-slate-400 px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 shadow-2xs" title="No registered voters aged ≥18 listing this member as parent in roll">0 Children on Roll</span>
+              </div>
+            `}
+          </div>
+        `;
+      }
+
+      function renderTargetBranch() {
+        const targetBranchId = children.length > 0 ? 'branch-target-children' : null;
+        let tBox = '';
+        if (hasSpouse) {
+          tBox = `
+            <div class="pedigree-couple-box ring-2 ring-amber-300">
+              <div class="pedigree-couple-line"></div>
+              <span class="pedigree-couple-badge">💍</span>
+              ${renderAvatarCard(t, 'Self (Target)', true, targetBranchId)}
+              ${renderAvatarCard(spouses[0], spouses[0].gender === 'F' ? 'Wife' : 'Husband')}
+            </div>
+          `;
+        } else {
+          tBox = `<div class="bg-amber-50/50 p-2 rounded-2xl border-2 border-amber-400 shadow-xs">${renderAvatarCard(t, 'Self (Target)', true, targetBranchId)}</div>`;
+        }
+
+        return `
+          <div class="flex flex-col items-center">
+            ${gen3Count > 1 ? '<div class="w-0.5 h-6 bg-slate-400"></div>' : ''}
+            ${tBox}
+            ${children.length > 0 ? `
+              <div class="mt-1 flex flex-col items-center">
+                <button type="button" onclick="event.stopPropagation(); togglePedigreeBranch('branch-target-children')" id="btn-toggle-target-children" class="text-[9.5px] font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-100 hover:bg-emerald-200 text-emerald-900 border border-emerald-300 shadow-2xs flex items-center gap-1 transition-all cursor-pointer" title="Click to branch in / out">
+                  <span>👶 Target's Children (${children.length})</span>
+                  <span id="chevron-target-children" class="font-bold text-[10px]">▴</span>
+                </button>
+                <div id="branch-target-children" class="pedigree-branch-collapsible flex flex-col items-center transition-all duration-300">
+                  <div class="pedigree-drop-stem"></div>
+                  <div class="flex flex-col items-center p-2 rounded-2xl bg-emerald-50/50 border border-emerald-200 shadow-xs">
+                    <span class="text-[9px] font-extrabold text-emerald-800 uppercase tracking-wider mb-1 flex items-center gap-1">
+                      <span>👶 Target's Children (${children.length})</span>
+                    </span>
+                    <div class="flex flex-wrap items-center justify-center gap-2">
+                      ${(() => {
+                        const usedInLawIds = new Set();
+                        return children.map(c => {
+                          const spouseInLaw = childrenInLaw.find(il => {
+                            if (usedInLawIds.has(il.id)) return false;
+                            if (il.spouse_of_id && il.spouse_of_id === c.id) return true;
+                            if (!il.relative_name) return false;
+                            const clean = str => (str || '').toLowerCase().replace(/\b(shri|smt|late|mr|mrs|singh|devi)\b/g, '').trim();
+                            const rClean = clean(il.relative_name);
+                            const cClean = clean(c.name);
+                            return rClean && cClean && (rClean === cClean || rClean.includes(cClean) || cClean.includes(rClean));
+                          });
+                          const cChildren = grandchildren.filter(gc => gc.child_of_id === c.id);
+                          const childBranchId = cChildren.length > 0 ? `branch-child-${c.id}` : null;
+                          let cCard = '';
+                          if (spouseInLaw) {
+                            usedInLawIds.add(spouseInLaw.id);
+                            cCard = `
+                              <div class="pedigree-couple-box">
+                                <div class="pedigree-couple-line"></div>
+                                <span class="pedigree-couple-badge">💍</span>
+                                ${renderAvatarCard(c, c.gender === 'F' ? 'Daughter' : 'Son', false, childBranchId)}
+                                ${renderAvatarCard(spouseInLaw, spouseInLaw.gender === 'F' ? 'Daughter-in-Law' : 'Son-in-Law')}
+                              </div>
+                            `;
+                          } else {
+                            cCard = `<div class="bg-white p-2 rounded-2xl border border-slate-200 shadow-xs">${renderAvatarCard(c, c.gender === 'F' ? 'Daughter' : 'Son', false, childBranchId)}</div>`;
+                          }
+                          return `
+                            <div class="flex flex-col items-center">
+                              ${cCard}
+                              ${cChildren.length > 0 ? `
+                                <div class="mt-1 flex flex-col items-center">
+                                  <button type="button" onclick="event.stopPropagation(); togglePedigreeBranch('branch-child-${c.id}')" id="btn-toggle-child-${c.id}" class="text-[9.5px] font-extrabold px-2.5 py-0.5 rounded-full bg-indigo-100 hover:bg-indigo-200 text-indigo-900 border border-indigo-300 shadow-2xs flex items-center gap-1 transition-all cursor-pointer" title="Click to branch in / out">
+                                    <span>👶 ${cChildren.length} Children</span>
+                                    <span id="chevron-child-${c.id}" class="font-bold text-[10px]">▴</span>
+                                  </button>
+                                  <div id="branch-child-${c.id}" class="pedigree-branch-collapsible flex flex-col items-center transition-all duration-300">
+                                    <div class="pedigree-drop-stem"></div>
+                                    <div class="flex flex-col items-center p-2 rounded-2xl bg-indigo-50/50 border border-indigo-200 shadow-xs">
+                                      <span class="text-[9px] font-extrabold text-indigo-800 uppercase tracking-wider mb-1 flex items-center gap-1">
+                                        <span>👶 ${c.gender === 'F' ? "Daughter's" : "Son's"} Children (${cChildren.length})</span>
+                                      </span>
+                                      <div class="flex flex-wrap items-center justify-center gap-2">
+                                        ${cChildren.map(gc => renderAvatarCard(gc, gc.gender === 'F' ? 'Granddaughter' : 'Grandson')).join('')}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              ` : `
+                                <div class="mt-1">
+                                  <span class="text-[8px] font-semibold text-slate-400 px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 shadow-2xs" title="No registered voters aged ≥18 listing this member as parent in roll">0 Children on Roll</span>
+                                </div>
+                              `}
+                            </div>
+                          `;
+                        }).join('');
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }
+
+      // Group all descendants of parents: Siblings + Target (paired with Spouse if present)
+      html += '<div class="flex flex-col items-center"><span class="text-[10px] font-extrabold uppercase tracking-wider text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200 mb-2">Generation 3 • Target & Siblings</span>';
+
+      const barWidth = Math.max(140, (gen3Count - 1) * 200);
+
+      if (gen3Count > 1) {
+        html += `<div class="pedigree-branch-bar" style="width: ${barWidth}px;"></div>`;
+      }
+
+      html += '<div class="flex items-start justify-center gap-6 sm:gap-10">';
+
+      // Elder Siblings
+      const elderSibs = siblings.filter(s => (s.age || 0) > (t.age || 0));
+      elderSibs.forEach(s => {
+        html += renderSiblingBranch(s);
+      });
+
+      // Target Node (Paired with Spouse if married, with Children)
+      html += renderTargetBranch();
+
+      // Younger Siblings
+      const youngerSibs = siblings.filter(s => (s.age || 0) <= (t.age || 0));
+      youngerSibs.forEach(s => {
+        html += renderSiblingBranch(s);
+      });
+
+      html += '</div></div>';
+
+      // TIER 5: UNASSIGNED GRANDCHILDREN (Only if not already nested under a specific child above)
+      const unassignedGrandchildren = (children.length > 0)
+        ? grandchildren.filter(gc => !gc.child_of_id || !children.some(c => c.id === gc.child_of_id))
+        : grandchildren;
+      if (unassignedGrandchildren.length > 0) {
+        html += '<div class="flex flex-col items-center mt-2">';
+        html += '<div class="pedigree-drop-stem"></div>';
+        html += '<span class="text-[10px] font-extrabold uppercase tracking-wider text-teal-700 bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200 mb-2">Generation 5 • Grandchildren</span>';
+
+        const gcBarWidth = Math.max(140, (unassignedGrandchildren.length - 1) * 150);
+        if (unassignedGrandchildren.length > 1) {
+          html += `<div class="pedigree-branch-bar" style="width: ${gcBarWidth}px;"></div>`;
+        }
+
+        html += '<div class="flex items-start justify-center gap-6 sm:gap-10">';
+        unassignedGrandchildren.forEach(gc => {
+          html += `
+            <div class="flex flex-col items-center">
+              ${unassignedGrandchildren.length > 1 ? '<div class="w-0.5 h-6 bg-slate-400"></div>' : ''}
+              <div class="bg-white p-2 rounded-2xl border border-slate-200 shadow-xs">${renderAvatarCard(gc, gc.gender === 'F' ? 'Granddaughter' : 'Grandson')}</div>
+            </div>
+          `;
+        });
+        html += '</div></div>';
+      }
+
+      if (b.unrelated_cohabitants && b.unrelated_cohabitants.length > 0) {
+        html += `
+          <div class="mt-6 p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 text-xs flex flex-wrap items-center justify-between gap-2 max-w-xl mx-auto shadow-2xs">
+            <div class="flex items-center gap-2">
+              <i data-lucide="info" class="w-4 h-4 text-slate-500"></i>
+              <span><strong>${b.unrelated_cohabitants.length} other electors</strong> reside at House #${t.house_no} under separate household units.</span>
+            </div>
+            <button type="button" onclick="toggleUnrelatedDrawer()" class="text-xs font-bold text-blue-600 hover:text-blue-800 underline">View Co-residents</button>
+          </div>
+          <div id="ft-unrelated-drawer" class="hidden mt-2 p-3 bg-white rounded-xl border border-slate-200 shadow-sm max-w-xl mx-auto">
+            <h6 class="text-xs font-bold text-slate-700 mb-2">Unrelated Co-residents at House #${t.house_no} (Separate Clans)</h6>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto">
+              ${b.unrelated_cohabitants.map(u => `
+                <div class="p-2 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-between text-xs">
+                  <div>
+                    <div class="font-bold text-slate-800">${u.name}</div>
+                    <div class="text-[10px] text-slate-500">${u.age}y ${u.gender} • Rel: ${u.relative_name} (${u.relation_type})</div>
+                  </div>
+                  <span class="text-[9px] font-mono text-slate-400">${u.epic_no || ''}</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      }
+
+      canvas.innerHTML = html;
+      lucide.createIcons();
+
+      // Automatically fit pedigree tree to available screen width
+      setTimeout(fitFamilyTreeToScreen, 100);
+    }
+
+    // Consolidated Printable Household Slip Generator
+    function printCurrentHouseholdSlip() {
+      if (!currentHouseholdData) return;
+      const d = currentHouseholdData;
+      const t = d.target;
+      const b = d.branches || {};
+      const head = d.head_of_household;
+
+      // Extract all distinct individuals into flat list
+      const members = [];
+      const seenIds = new Set();
+
+      function addMem(m, role) {
+        if (!m || !m.name || m.is_deceased) return;
+        const key = m.id || m.epic_no;
+        if (!seenIds.has(key)) {
+          seenIds.add(key);
+          members.push({ ...m, role: m.relationship_label || role });
+        }
+      }
+
+      // Add Head first if present
+      if (head) addMem(head, 'Head of House');
+      // Add grandparents
+      (b.grandparents || []).forEach(m => addMem(m, 'Grandparent'));
+      // Add parents
+      (b.parents || []).forEach(m => addMem(m, 'Parent'));
+      // Add target & spouse
+      addMem(t, 'Self (Target)');
+      (b.spouses || []).forEach(m => addMem(m, 'Spouse'));
+      // Add siblings
+      (b.siblings || []).forEach(m => addMem(m, 'Sibling'));
+      // Add children
+      (b.children || []).forEach(m => addMem(m, 'Child'));
+      // Note: b.others omitted under Option 1 (Strict Biological Lineage)
+
+      // Sort by age descending
+      members.sort((a, b) => (b.age || 0) - (a.age || 0));
+
+      // Populate Household slip modal
+      document.getElementById('hs-ac-name').innerText = `AC ${t.ac_no} ${t.ac_name || ''}`;
+      document.getElementById('hs-part-name').innerText = `Part ${t.part_no} - ${t.polling_station_name || 'Designated Station'}`;
+      document.getElementById('hs-house-no').innerText = t.house_no || '-';
+      document.getElementById('hs-head-name').innerText = head ? `${head.name} (${head.age}y)` : 'Family Elder';
+
+      const tbody = document.getElementById('hs-electors-tbody');
+      tbody.innerHTML = members.map((m, idx) => `
+        <tr class="${m.id === t.id ? 'bg-amber-50/70 font-semibold' : ''}">
+          <td class="p-2 text-center text-slate-500 font-mono text-[11px]">${idx + 1}</td>
+          <td class="p-2">
+            <strong class="text-slate-900">${m.name}</strong>
+            ${head && m.id === head.id ? '<span class="ml-1 text-[10px] text-amber-700 font-bold">👑 Head</span>' : ''}
+            ${m.id === t.id ? '<span class="ml-1 text-[10px] text-emerald-700 font-bold">⭐ Self</span>' : ''}
+          </td>
+          <td class="p-2 text-slate-600">${m.relative_name || '-'} (${m.relation_type || 'Father'})</td>
+          <td class="p-2 text-center text-slate-600">${m.gender === 'M' ? 'Male' : (m.gender === 'F' ? 'Female' : 'Other')}</td>
+          <td class="p-2 text-center text-slate-700 font-semibold">${m.age}y</td>
+          <td class="p-2 font-mono text-slate-800 text-[11px]">${m.epic_no}</td>
+          <td class="p-2 text-center">
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">${m.role}</span>
+          </td>
+        </tr>
+      `).join('');
+
+      // Render 2D Scannable QR Code on household slip
+      const qrContainer = document.getElementById('hs-slip-qrcode');
+      if (qrContainer) {
+        qrContainer.innerHTML = '';
+        try {
+          if (typeof QRCode !== 'undefined') {
+            const qrData = `ECI-HH|AC:${t.ac_no}|PART:${t.part_no}|HOUSE:${t.house_no}|HEAD:${head ? head.name : t.name}|ELECTORS:${members.length}|TARGET:${t.epic_no}`;
+            new QRCode(qrContainer, {
+              text: qrData,
+              width: 72,
+              height: 72,
+              colorDark: "#064e3b",
+              colorLight: "#ffffff",
+              correctLevel: QRCode.CorrectLevel.M
+            });
+          }
+        } catch(e) {
+          console.error("Household QR Code render error:", e);
+        }
+      }
+
+      document.getElementById('householdSlipModal').classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function printActiveVoterSlipIsolated() {
+      const slipEl = document.getElementById('printableSlip');
+      if (!slipEl) {
+        window.print();
+        return;
+      }
+      printIsolatedHtml(slipEl.outerHTML, `Voter_Slip_${state.activeSlipVoter?.epic_no || 'ECI'}`);
+    }
+
+    function printHouseholdSlipIsolated() {
+      const slipEl = document.getElementById('printableHouseholdSlip');
+      if (!slipEl) {
+        window.print();
+        return;
+      }
+      printIsolatedHtml(slipEl.outerHTML, `Household_Slip_${currentHouseholdData?.target?.epic_no || 'ECI'}`);
+    }
+
+    function printIsolatedHtml(contentHtml, title) {
+      let iframe = document.getElementById('isolatedPrintFrame');
+      if (!iframe) {
+        iframe = document.createElement('iframe');
+        iframe.id = 'isolatedPrintFrame';
+        iframe.style.position = 'fixed';
+        iframe.style.right = '0';
+        iframe.style.bottom = '0';
+        iframe.style.width = '0';
+        iframe.style.height = '0';
+        iframe.style.border = '0';
+        document.body.appendChild(iframe);
+      }
+      const doc = iframe.contentWindow.document;
+      doc.open();
+      doc.write([
+        '<!DOCTYPE html>',
+        '<html>',
+        '<head>',
+        '  <meta charset="utf-8">',
+        '  <title>' + (title || 'ECI Official Voter Slip') + '</title>',
+        '  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">',
+        '  <style>',
+        '    @page { size: A4 portrait; margin: 10mm; }',
+        '    body { margin: 0; padding: 0; background: #fff !important; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }',
+        '    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; box-sizing: border-box; }',
+        '    .printable-content { max-width: 100% !important; margin: 0 auto !important; page-break-inside: avoid !important; }',
+        '  </style>',
+        '</head>',
+        '<body>',
+        '  <div class="printable-content">' + contentHtml + '</div>',
+        '  <script>',
+        '    window.onload = function() {',
+        '      setTimeout(function() {',
+        '        window.focus();',
+        '        window.print();',
+        '      }, 400);',
+        '    };',
+        '  <' + '/script>',
+        '</body>',
+        '</html>'
+      ].join('\\n'));
+      doc.close();
+    }
+
+    async function shareHouseholdSlip() {
+      if (!currentHouseholdData) return;
+      const d = currentHouseholdData;
+      const t = d.target;
+      const text = `👨‍👩‍👧‍👦 Family Elector Slip (AC #${t.ac_no} Part #${t.part_no})\nHousehold: House #${t.house_no}\nHead of Family: ${d.head_of_household ? d.head_of_household.name : t.name}\nVerified Family Members: ${d.total_lineage_count} electors\nTarget Elector: ${t.name} (${t.epic_no})`;
+      if (navigator.share) {
+        try {
+          await navigator.share({ title: `Household Voter Slip - ${t.name}`, text: text });
+        } catch(e) {}
+      } else {
+        await navigator.clipboard.writeText(text);
+        alert("Family voter slip details copied to clipboard!");
+      }
+    }
+
+    function shareHouseholdSlipWhatsApp() {
+      if (!currentHouseholdData) return;
+      const d = currentHouseholdData;
+      const t = d.target || {};
+      const head = d.head_of_household || {};
+      const b = d.branches || {};
+      const members = [];
+      const seen = new Set();
+      function collect(m) {
+        if (!m || !m.name || m.is_deceased) return;
+        const key = m.id || m.epic_no;
+        if (!seen.has(key)) {
+          seen.add(key);
+          members.push(m);
+        }
+      }
+      if (head) collect(head);
+      (b.grandparents || []).forEach(collect);
+      (b.parents || []).forEach(collect);
+      collect(t);
+      (b.spouses || []).forEach(collect);
+      (b.siblings || []).forEach(collect);
+      (b.children || []).forEach(collect);
+
+      const memberLines = members.map((m, i) => `${i+1}. ${m.name} (${m.age}y, ${m.gender}) - EPIC: ${m.epic_no || 'N/A'}`).join('\n');
+      const text = `🗳️ *Official ECI Family Voter Information Pass*\n\n🏛️ *AC #${t.ac_no} ${t.ac_name || ''}* | Part #${t.part_no}\n🏫 *Polling Station*: ${t.polling_station_name || 'Designated Station'}\n🏠 *House No*: #${t.house_no || 'N/A'}\n👑 *Head of Household*: ${head.name || t.name} (${head.age || '--'}y)\n👥 *Registered Electors (${members.length})*:\n${memberLines}\n\n📍 *Generated via Manipur Electoral Intelligence Platform*`;
+      window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
+    }
+
+    function closeHouseholdSlipModal() {
+      document.getElementById('householdSlipModal').classList.add('hidden');
+    }
+
+    function goBackFamilyTree() {
+      if (familyTreeHistory && familyTreeHistory.length > 0) {
+        if (currentHouseholdData && currentHouseholdData.target) {
+          familyTreeForwardHistory.push({
+            id: currentHouseholdData.target.id,
+            name: currentHouseholdData.target.name
+          });
+        }
+        const prev = familyTreeHistory.pop();
+        openFamilyModal(prev.id, prev.name, true);
+      } else {
+        closeFamilyModal();
+      }
+    }
+
+    function goForwardFamilyTree() {
+      if (familyTreeForwardHistory && familyTreeForwardHistory.length > 0) {
+        if (currentHouseholdData && currentHouseholdData.target) {
+          familyTreeHistory.push({
+            id: currentHouseholdData.target.id,
+            name: currentHouseholdData.target.name
+          });
+        }
+        const next = familyTreeForwardHistory.pop();
+        openFamilyModal(next.id, next.name, true);
+      }
+    }
+
+    function closeFamilyModal() {
+      familyTreeHistory = [];
+      familyTreeForwardHistory = [];
+      const backBtn = document.getElementById('ft-back-btn');
+      if (backBtn) backBtn.classList.add('hidden');
+      const fwdBtn = document.getElementById('ft-fwd-btn');
+      if (fwdBtn) fwdBtn.classList.add('hidden');
+      document.getElementById('familyModal').classList.add('hidden');
+    }
+
+    async function exportFamilyTreeImage() {
+      const containerEl = document.getElementById('ft-pedigree-view');
+      const canvasEl = document.getElementById('ft-pedigree-canvas');
+      if (!canvasEl || !containerEl) return;
+      const btn = document.getElementById('ft-export-img-btn');
+      const origHtml = btn ? btn.innerHTML : '';
+      if (btn) btn.innerHTML = '<span class="text-xs">⏳ Capturing Full Tree...</span>';
+
+      // Temporarily expand all collapsible branches so complete tree is exported without clipping
+      const hiddenBranches = canvasEl.querySelectorAll('.pedigree-branch-collapsible.hidden');
+      hiddenBranches.forEach(b => b.classList.remove('hidden'));
+
+      // Save original styles
+      const origTransform = canvasEl.style.transform;
+      const origContainerMaxHeight = containerEl.style.maxHeight;
+      const origContainerOverflow = containerEl.style.overflow;
+      const origContainerHeight = containerEl.style.height;
+
+      // Unconstrain container and reset canvas transform to 1:1 scale
+      canvasEl.style.transform = 'scale(1)';
+      containerEl.style.maxHeight = 'none';
+      containerEl.style.overflow = 'visible';
+      containerEl.style.height = 'auto';
+
+      try {
+        if (typeof html2canvas === 'undefined') {
+          throw new Error("html2canvas library not loaded");
+        }
+
+        // Wait a brief tick for DOM and layout reflow
+        await new Promise(r => setTimeout(r, 120));
+
+        const fullWidth = Math.max(canvasEl.scrollWidth, canvasEl.offsetWidth, 1200);
+        const fullHeight = Math.max(canvasEl.scrollHeight, canvasEl.offsetHeight, 600);
+
+        const rendered = await html2canvas(canvasEl, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+          logging: false,
+          width: fullWidth,
+          height: fullHeight,
+          windowWidth: fullWidth + 100,
+          windowHeight: fullHeight + 100,
+          scrollX: 0,
+          scrollY: 0
+        });
+
+        const targetName = (currentHouseholdData && currentHouseholdData.target && currentHouseholdData.target.name) 
+          ? currentHouseholdData.target.name.replace(/\s+/g, '_') 
+          : 'Family_Tree';
+        const link = document.createElement('a');
+        link.download = `${targetName}_Pedigree_Chart.png`;
+        link.href = rendered.toDataURL('image/png');
+        link.click();
+      } catch (err) {
+        console.error("Export Family Tree Image failed:", err);
+        alert("Could not export family tree PNG. Please try again.");
+      } finally {
+        // Restore container styles, canvas transform, and collapsed branch state
+        canvasEl.style.transform = origTransform;
+        containerEl.style.maxHeight = origContainerMaxHeight;
+        containerEl.style.overflow = origContainerOverflow;
+        containerEl.style.height = origContainerHeight;
+        hiddenBranches.forEach(b => b.classList.add('hidden'));
+
+        if (btn) btn.innerHTML = origHtml;
+        lucide.createIcons();
+      }
+    }
+
+    function calculateDistanceToPollingStation() {
+      if (!currentMapData) return;
+      const ps = currentMapData.polling_station || {};
+      const h = currentMapData.household || {};
+      const targetLat = ps.latitude || h.latitude;
+      const targetLng = ps.longitude || h.longitude;
+      if (!targetLat || !targetLng) return;
+
+      const textSpan = document.getElementById('map-gps-dist-text');
+      if (textSpan) textSpan.innerText = "Locating GPS...";
+
+      if (!navigator.geolocation) {
+        if (textSpan) textSpan.innerText = "GPS Not Supported";
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const userLat = pos.coords.latitude;
+          const userLng = pos.coords.longitude;
+
+          const R = 6371; // km
+          const dLat = (targetLat - userLat) * Math.PI / 180;
+          const dLng = (targetLng - userLng) * Math.PI / 180;
+          const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                    Math.cos(userLat * Math.PI / 180) * Math.cos(targetLat * Math.PI / 180) *
+                    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+          const distKm = R * c;
+          const etaMinutes = Math.round((distKm / 25) * 60);
+
+          if (textSpan) {
+            textSpan.innerText = `📍 ~${distKm.toFixed(1)} km (${etaMinutes < 60 ? etaMinutes + ' min drive' : Math.floor(etaMinutes/60) + 'h ' + (etaMinutes%60) + 'm'})`;
+          }
+        },
+        (err) => {
+          console.warn("GPS error:", err);
+          if (textSpan) textSpan.innerText = "GPS Access Denied";
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+      );
+    }
+
+    // Native Mobile Swipe-to-Go-Back Gesture for Family Tree Modal
+    (function initFamilyModalSwipe() {
+      const modal = document.getElementById('familyModal');
+      if (!modal) return;
+      let touchStartX = 0;
+      let touchStartY = 0;
+      modal.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 1) {
+          touchStartX = e.touches[0].clientX;
+          touchStartY = e.touches[0].clientY;
+        }
+      }, { passive: true });
+      modal.addEventListener('touchend', (e) => {
+        if (e.changedTouches.length === 1) {
+          const deltaX = e.changedTouches[0].clientX - touchStartX;
+          const deltaY = e.changedTouches[0].clientY - touchStartY;
+          // Swipe right (> 80px horizontally with minimal vertical movement)
+          if (deltaX > 80 && Math.abs(deltaY) < 60) {
+            goBackFamilyTree();
+          }
+        }
+      }, { passive: true });
+    })();
+
+    // Touch & Mouse Drag Panning for Pedigree Canvas
+    (function initPedigreeDrag() {
+      const container = document.getElementById('ft-pedigree-view');
+      if (!container) return;
+      let isDown = false;
+      let startX, startY, scrollLeft, scrollTop;
+
+      container.addEventListener('mousedown', (e) => {
+        if (e.target.closest('.pedigree-node-card') || e.target.closest('button')) return;
+        isDown = true;
+        startX = e.pageX - container.offsetLeft;
+        startY = e.pageY - container.offsetTop;
+        scrollLeft = container.scrollLeft;
+        scrollTop = container.scrollTop;
+      });
+      container.addEventListener('mouseleave', () => { isDown = false; });
+      container.addEventListener('mouseup', () => { isDown = false; });
+      container.addEventListener('mousemove', (e) => {
+        if (!isDown) return;
+        e.preventDefault();
+        const x = e.pageX - container.offsetLeft;
+        const y = e.pageY - container.offsetTop;
+        container.scrollLeft = scrollLeft - (x - startX);
+        container.scrollTop = scrollTop - (y - startY);
+      });
+    })();
+
+    // Leaflet Interactive Map & Open-Source GIS Logic (ISRO Bhuvan + OSM)
+    let leafletMapInstance = null;
+    let currentMapVoterId = null;
+    let currentMapData = null;
+    let mapTileLayerControl = null;
+
+    async function openHouseholdMap(voterId, voterPreload = null) {
+      if (!voterId) return;
+      currentMapVoterId = voterId;
+      document.getElementById('mapModal').classList.remove('hidden');
+      lucide.createIcons();
+
+      // Show Instant Verified Polling Station State
+      const v = voterPreload || (state.currentResults ? state.currentResults.find(x => x.id === voterId) : null);
+      if (v) {
+        document.getElementById('map-ac-badge').innerText = `AC #${v.ac_no || '--'} • Part #${v.part_no || '--'}`;
+        document.getElementById('map-house-text').innerText = v.house_no ? `House #${v.house_no}` : "House #--";
+        document.getElementById('map-booth-title').innerText = v.polling_station_name || "Official Designated Polling Station";
+        document.getElementById('map-section-desc').innerText = `Designated Polling Station #${v.part_no || '--'} • AC #${v.ac_no || '--'} ${v.ac_name ? '(' + v.ac_name + ')' : ''} • 100% Verified Location`;
+      } else {
+        document.getElementById('map-ac-badge').innerText = "Loading...";
+        document.getElementById('map-house-text').innerText = "House #--";
+        document.getElementById('map-booth-title').innerText = "Official Designated Polling Station";
+        document.getElementById('map-section-desc').innerText = "Retrieving verified polling station coordinates and location...";
+      }
+      document.getElementById('map-head-name').innerText = "Loading...";
+      document.getElementById('map-family-total').innerText = "--";
+      document.getElementById('map-members-pill').innerText = "--";
+      document.getElementById('map-coords-pill').innerText = "Locating GPS...";
+      document.getElementById('map-family-members-grid').innerHTML = `
+        <div class="col-span-full py-6 text-center text-slate-400 text-xs flex items-center justify-center gap-2">
+          <i data-lucide="loader" class="w-4 h-4 animate-spin text-blue-600"></i>
+          <span>Retrieving verified polling station coordinates and family electors...</span>
+        </div>
+      `;
+      lucide.createIcons();
+
+      try {
+        const resp = await fetch(`/api/voter/${voterId}/household_map`);
+        if (!resp.ok) throw new Error("Could not load household geo data");
+        const data = await resp.json();
+        currentMapData = data;
+
+        // Populate Header Badges & Titles
+        const h = data.household;
+        const ps = data.polling_station || {};
+        const head = data.head_of_household || {};
+        document.getElementById('map-ac-badge').innerText = `AC #${h.ac_no} (${h.ac_name}) • Part #${ps.part_no || h.part_no}`;
+        document.getElementById('map-house-text').innerText = `House #${h.house_no || 'N/A'}`;
+        document.getElementById('map-booth-title').innerText = `${ps.building_name || ps.name || h.polling_station_name}`;
+        document.getElementById('map-section-desc').innerText = `Designated Booth #${ps.part_no || h.part_no} • Locality: ${ps.locality || h.section_name} • ECI Part: ${ps.name || h.polling_station_name}`;
+
+        const boothBuildingEl = document.getElementById('map-booth-building-name');
+        if (boothBuildingEl) boothBuildingEl.innerText = ps.building_name || ps.name || 'Polling Station';
+        document.getElementById('map-head-name').innerText = `${head.name || 'N/A'} (${head.age || '--'}y, ${head.gender || '--'})`;
+        document.getElementById('map-family-total').innerText = data.family.total_count;
+        document.getElementById('map-members-pill').innerText = `${data.family.total_count} Electors`;
+
+        const latVal = ps.latitude || h.latitude;
+        const lngVal = ps.longitude || h.longitude;
+        const coordsStr = `${latVal.toFixed(5)}° N, ${lngVal.toFixed(5)}° E`;
+        document.getElementById('map-coords-pill').innerText = coordsStr;
+
+        // Google Maps Links
+        const gmapsLink = ps.google_maps_url || h.google_maps_url || `https://www.google.com/maps/search/?api=1&query=${latVal},${lngVal}`;
+        document.getElementById('map-gmaps-link').href = gmapsLink;
+        const dirLink = document.getElementById('map-directions-link');
+        if (dirLink) {
+          dirLink.href = ps.google_maps_directions_url || `https://www.google.com/maps/dir/?api=1&destination=${latVal},${lngVal}`;
+        }
+
+        // Render Family Members Grid
+        const grid = document.getElementById('map-family-members-grid');
+        grid.innerHTML = data.family.members.map(m => {
+          const isM = m.gender === 'M';
+          const isTarget = m.is_target;
+          const isHead = m.id === head.id;
+          const safeM = JSON.stringify(m).replace(/"/g, '&quot;');
+          return `
+            <div class="p-2 rounded-xl border ${isTarget ? 'border-amber-400 bg-amber-50/70 shadow-xs' : isHead ? 'border-amber-300 bg-amber-50/40' : 'border-slate-200 bg-white hover:bg-slate-50'} flex items-center justify-between gap-1.5 transition">
+              <div class="flex items-center gap-2 min-w-0">
+                <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${isM ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'}">
+                  ${isHead ? '👑' : isM ? '👨' : '👩'}
+                </div>
+                <div class="min-w-0 leading-tight">
+                  <p class="text-xs font-bold text-slate-800 truncate" title="${m.name}">${m.name}</p>
+                  <p class="text-[10px] text-slate-500">${m.age}y • ${m.gender} • <span class="font-semibold ${isHead ? 'text-amber-700' : 'text-slate-600'}">${m.role || 'Family'}</span></p>
+                  <p class="text-[9px] font-mono text-emerald-700 font-semibold">${m.epic_no || '--'} • <span class="${m.audit_tier === 'SILVER_SPLIT_BOOTH' ? 'text-amber-700' : 'text-emerald-700'}">${m.audit_tier === 'SILVER_SPLIT_BOOTH' ? '🟡 Split-Booth' : '🟢 Verified'}</span></p>
+                </div>
+              </div>
+              <button onclick='openVoterModal(${safeM})' class="p-1 text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 rounded transition shrink-0" title="View Voter Slip">
+                <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+          `;
+        }).join('');
+        lucide.createIcons();
+
+        // Render Leaflet Map centered on Designated Polling Station
+        const boothCoords = [latVal, lngVal];
+
+        setTimeout(() => {
+          if (!leafletMapInstance) {
+            leafletMapInstance = L.map('leafletMap', { scrollWheelZoom: false, touchZoom: true }).setView(boothCoords, 16);
+
+            // Layer definitions
+            const osmStandard = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+              maxZoom: 19,
+              attribution: '© OpenStreetMap contributors'
+            });
+
+            const bhuvanSatellite = L.tileLayer.wms('https://bhuvan-vec1.nrsc.gov.in/bhuvan/wms', {
+              layers: 'bhuvan_imagery2',
+              format: 'image/jpeg',
+              transparent: false,
+              version: '1.1.1',
+              maxZoom: 19,
+              attribution: '© ISRO / NRSC Bhuvan'
+            });
+
+            const esriSatellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+              maxZoom: 19,
+              attribution: 'Tiles © Esri'
+            });
+
+            osmStandard.addTo(leafletMapInstance);
+
+            const baseMaps = {
+              "🗺️ OpenStreetMap": osmStandard,
+              "🛰️ ISRO Bhuvan (WMS)": bhuvanSatellite,
+              "🌐 Esri High-Res Satellite": esriSatellite
+            };
+
+            mapTileLayerControl = L.control.layers(baseMaps, null, { position: 'topright' }).addTo(leafletMapInstance);
+          } else {
+            leafletMapInstance.setView(boothCoords, 16);
+            leafletMapInstance.invalidateSize();
+          }
+
+          // Clear existing markers & polylines
+          leafletMapInstance.eachLayer(layer => {
+            if (layer instanceof L.Marker || layer instanceof L.Polyline) {
+              leafletMapInstance.removeLayer(layer);
+            }
+          });
+
+          // Single Authoritative Designated Polling Station Marker
+          const boothIcon = L.divIcon({
+            className: 'custom-booth-marker',
+            html: `
+              <div class="flex items-center gap-2 bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-800 text-white font-bold px-3.5 py-2 rounded-full shadow-2xl border-2 border-white text-xs cursor-pointer whitespace-nowrap transform -translate-x-1/2 -translate-y-1/2 hover:scale-105 transition">
+                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg>
+                <span>🏫 ${ps.building_name || ps.name || 'Polling Station'} (Booth #${ps.part_no || h.part_no})</span>
+              </div>
+            `,
+            iconSize: [0, 0]
+          });
+
+          const boothMarker = L.marker(boothCoords, { icon: boothIcon }).addTo(leafletMapInstance);
+          boothMarker.bindPopup(`
+            <div class="text-xs space-y-1.5 p-1 min-w-[240px]">
+              <div class="font-bold text-blue-900 text-sm flex items-center justify-between border-b border-slate-100 pb-1">
+                <span>🏛️ Polling Booth #${ps.part_no || h.part_no}</span>
+                <span class="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-mono font-bold">100% Official</span>
+              </div>
+              <p class="text-slate-900 font-bold text-xs">${ps.building_name || ps.name || h.polling_station_name}</p>
+              ${ps.wing ? `<p class="text-amber-800 text-[11px] font-semibold">📍 Wing / Room: ${ps.wing}</p>` : ''}
+              <p class="text-slate-500 text-[11px]">${h.section_name || 'Main Sector'} • AC #${h.ac_no} (${h.ac_name})</p>
+              <div class="p-1.5 bg-amber-50 rounded-lg border border-amber-200 text-[11px] text-amber-900">
+                🏠 Elector Roll Address: <strong>House #${h.house_no || 'N/A'}</strong> (${data.family.total_count} Electors)
+              </div>
+              <div class="pt-1.5 border-t border-slate-200 flex items-center justify-between text-[11px]">
+                <a href="${gmapsLink}" target="_blank" rel="noopener noreferrer" class="text-emerald-700 font-bold hover:underline flex items-center gap-1">📍 Google Maps ↗</a>
+                <a href="${dirLink ? dirLink.href : gmapsLink}" target="_blank" rel="noopener noreferrer" class="text-blue-600 font-bold hover:underline flex items-center gap-1">🧭 Directions ↗</a>
+              </div>
+            </div>
+          `).openPopup();
+
+          leafletMapInstance.setView(boothCoords, 16);
+        }, 150);
+
+      } catch (err) {
+        console.error(err);
+        document.getElementById('map-booth-title').innerText = "Unable to load polling station map";
+        document.getElementById('map-section-desc').innerText = err.message || "An error occurred";
+      }
+    }
+
+    function openMapModal(v) {
+      if (v && v.id) {
+        openHouseholdMap(v.id);
+      } else if (typeof v === 'number') {
+        openHouseholdMap(v);
+      }
+    }
+
+    function closeMapModal() {
+      document.getElementById('mapModal').classList.add('hidden');
+    }
+
+    function openFamilyFromMap() {
+      if (currentMapVoterId) {
+        closeMapModal();
+        const headName = currentMapData?.head_of_household?.name || "";
+        openFamilyModal(currentMapVoterId, headName);
+      }
+    }
+
+    function openHouseholdMapFromFamily() {
+      if (state.activeVoterId) {
+        closeFamilyModal();
+        openHouseholdMap(state.activeVoterId);
+      }
+    }
+
+    function openHouseholdMapFromSlip() {
+      const v = state.activeSlipVoter || state.activeVoter;
+      if (v) {
+        closeModal();
+        openHouseholdMap(v.id);
+      }
+    }
+
+    function shareMapLocationWhatsApp() {
+      if (!currentMapData) return;
+      const ps = currentMapData.polling_station || {};
+      const h = currentMapData.household || {};
+      const head = currentMapData.head_of_household || {};
+      const url = ps.google_maps_url || h.google_maps_url || `https://www.google.com/maps?q=${ps.latitude || h.latitude},${ps.longitude || h.longitude}`;
+      const msg = `🗳️ *Official Designated Polling Station*:\n🏫 *${ps.building_name || ps.name || h.polling_station_name}* (Booth #${ps.part_no || h.part_no})\n${ps.wing ? `📍 Wing/Room: ${ps.wing}\n` : ''}📍 Locality: ${ps.locality || h.section_name}, AC #${h.ac_no} (${h.ac_name})\n🏠 Elector Address: House #${h.house_no || 'N/A'}\n👑 Head of Household: ${head.name || 'N/A'} (${head.age || '--'}y)\n👥 Registered Electors: ${currentMapData.family?.total_count || 1}\n\n📌 *Google Maps Location & Directions*:\n${url}`;
+      window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`, '_blank');
+    }
+
+    function renderConstituenciesList() {
+      const tbody = document.getElementById('constituenciesTableBody');
+      const q = (document.getElementById('filterAcInput')?.value || '').toLowerCase();
+
+      const filtered = state.constituencies.filter(ac => 
+        ac.ac_name.toLowerCase().includes(q) || 
+        ac.district.toLowerCase().includes(q) ||
+        ac.ac_no.toString().includes(q)
+      );
+
+      tbody.innerHTML = filtered.map(ac => `
+        <tr class="hover:bg-slate-50 transition cursor-pointer" onclick="showAcDetail(${ac.ac_no})">
+          <td class="py-3 px-4 font-mono font-semibold text-slate-700">${ac.ac_no}</td>
+          <td class="py-3 px-4 font-bold text-slate-900">${ac.ac_name}</td>
+          <td class="py-3 px-4 text-slate-500">${ac.district}</td>
+          <td class="py-3 px-4 text-right font-semibold text-emerald-700">${ac.total_voters.toLocaleString()}</td>
+          <td class="py-3 px-4 text-center text-xs">
+            <span class="text-blue-600 font-medium">${ac.male_voters}</span> / <span class="text-pink-600 font-medium">${ac.female_voters}</span> / <span class="text-purple-600 font-semibold">${ac.third_gender_voters || 0} TG</span>
+          </td>
+          <td class="py-3 px-4 text-center font-medium">${ac.polling_stations_count || 4}</td>
+          <td class="py-3 px-4 text-right">
+            <button onclick="event.stopPropagation(); showAcDetail(${ac.ac_no})" class="text-xs px-2.5 py-1 bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 rounded-lg font-medium transition">
+              Details
+            </button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    async function showAcDetail(ac_no) {
+      state.activeModalAc = ac_no;
+      try {
+        const res = await fetch(`/api/constituency/${ac_no}`);
+        const data = await res.json();
+        const c = data.constituency;
+
+        document.getElementById('acModalBadge').innerText = `AC #${c.ac_no}`;
+        document.getElementById('acModalTitle').innerText = `${c.ac_no}. ${c.ac_name}`;
+        document.getElementById('acModalSubtitle').innerText = `District: ${c.district}`;
+        document.getElementById('acModalTotal').innerText = c.total_voters.toLocaleString();
+        document.getElementById('acModalMale').innerText = c.male_voters.toLocaleString();
+        document.getElementById('acModalFemale').innerText = c.female_voters.toLocaleString();
+        if (document.getElementById('acModalThirdGender')) {
+          document.getElementById('acModalThirdGender').innerText = (c.third_gender_voters || 0).toLocaleString();
+        }
+
+        const psContainer = document.getElementById('acModalPollingStations');
+        if (data.polling_stations && data.polling_stations.length > 0) {
+          psContainer.innerHTML = data.polling_stations.map(ps => `
+            <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex justify-between items-center text-xs">
+              <div>
+                <p class="font-bold text-slate-800">${ps.polling_station_name}</p>
+                <p class="text-slate-500">Part No: ${ps.part_no}</p>
+              </div>
+              <div class="text-right">
+                <span class="font-semibold text-emerald-700">${ps.voter_count} voters</span>
+                <p class="text-[10px] text-slate-400">M: ${ps.male} | F: ${ps.female} | TG: ${ps.third_gender || 0}</p>
+              </div>
+            </div>
+          `).join('');
+        } else {
+          psContainer.innerHTML = '<p class="text-xs text-slate-400 py-3">No polling stations loaded yet.</p>';
+        }
+
+        document.getElementById('acDetailModal').classList.remove('hidden');
+        lucide.createIcons();
+      } catch (e) {
+        alert("Failed to load constituency details.");
+      }
+    }
+
+    function closeAcModal() {
+      document.getElementById('acDetailModal').classList.add('hidden');
+    }
+
+    function searchAcVoters() {
+      closeAcModal();
+      switchTab('search');
+      document.getElementById('filterAC').value = state.activeModalAc;
+      document.getElementById('searchQuery').value = '';
+      executeSearch(1);
+    }
+
+    async function handleFileSelected(file) {
+      if (!file) return;
+      const status = document.getElementById('uploadStatus');
+      status.classList.remove('hidden');
+      status.className = "mt-4 p-4 rounded-xl text-sm bg-blue-50 text-blue-700 border border-blue-200 flex items-center gap-2";
+      status.innerHTML = '<i data-lucide="loader" class="w-4 h-4 animate-spin"></i><span>Extracting and parsing voter roll PDF...</span>';
+      lucide.createIcons();
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      try {
+        const res = await fetch('/api/upload-pdf', {
+          method: 'POST',
+          body: formData
+        });
+        const result = await res.json();
+        if (result.success) {
+          status.className = "mt-4 p-4 rounded-xl text-sm bg-emerald-50 text-emerald-700 border border-emerald-200";
+          status.innerHTML = `<strong>Success!</strong> ${result.message}`;
+          fetchStats();
+          fetchConstituencies();
+        } else {
+          status.className = "mt-4 p-4 rounded-xl text-sm bg-rose-50 text-rose-700 border border-rose-200";
+          status.innerHTML = `<strong>Upload Failed:</strong> ${result.detail || 'Could not parse PDF'}`;
+        }
+      } catch (e) {
+        status.className = "mt-4 p-4 rounded-xl text-sm bg-rose-50 text-rose-700 border border-rose-200";
+        status.innerHTML = `<strong>Error:</strong> Failed to connect to server.`;
+      }
+      lucide.createIcons();
+    }
+  </script>
+</body>
+</html>
