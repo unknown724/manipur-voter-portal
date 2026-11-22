@@ -871,9 +871,20 @@
   <!-- MODAL: VOTER SLIP / DETAILS -->
   <div id="voterModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
     <div class="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl max-w-[calc(100vw-1rem)] sm:max-w-lg w-full p-3.5 sm:p-6 space-y-3 sm:space-y-4 relative border border-slate-200 dark:border-zinc-800 max-h-[92vh] overflow-y-auto transition-colors my-auto">
-      <button onclick="closeModal()" class="absolute right-3 top-3 sm:right-4 sm:top-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800 transition">
+      <button onclick="closeModal()" class="hidden sm:block absolute right-3 top-3 sm:right-4 sm:top-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800 transition">
         <i data-lucide="x" class="w-5 h-5 sm:w-6 sm:h-6"></i>
       </button>
+
+      <!-- Mobile Back to Search Header -->
+      <div class="sm:hidden flex items-center justify-between pb-1.5 border-b border-slate-200 dark:border-zinc-800 mb-1">
+        <button onclick="closeModal()" class="flex items-center gap-1.5 text-xs font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/70 hover:bg-emerald-200 dark:hover:bg-emerald-900/80 px-2.5 py-1 rounded-xl border border-emerald-300 dark:border-emerald-700 transition shadow-xs">
+          <i data-lucide="arrow-left" class="w-4 h-4"></i>
+          <span>← Back to Search</span>
+        </button>
+        <button onclick="closeModal()" class="text-slate-500 dark:text-zinc-400 hover:text-slate-700 dark:hover:text-white p-1 rounded-lg">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
 
       <!-- Slip Header -->
       <div id="printableSlip" class="space-y-3 sm:space-y-4 p-3 sm:p-4 border border-slate-300 dark:border-zinc-700 rounded-xl bg-amber-50/20 dark:bg-zinc-950">
@@ -1004,9 +1015,20 @@
   <!-- MODAL: INTERACTIVE FAMILY TREE & PEDIGREE GRAPH -->
   <div id="familyModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-1 sm:p-4 overflow-y-auto">
     <div class="bg-white dark:bg-zinc-900 text-slate-800 dark:text-slate-100 rounded-2xl shadow-2xl max-w-[calc(100vw-0.5rem)] sm:max-w-5xl xl:max-w-6xl w-full p-2.5 sm:p-6 space-y-2.5 sm:space-y-4 relative border border-slate-200 dark:border-zinc-800 max-h-[96vh] sm:max-h-[94vh] overflow-y-auto overflow-x-hidden transition-colors my-auto">
-      <button onclick="closeFamilyModal()" class="absolute right-2.5 top-2.5 sm:right-4 sm:top-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800 transition z-30">
+      <button onclick="closeFamilyModal()" class="hidden sm:block absolute right-2.5 top-2.5 sm:right-4 sm:top-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800 transition z-30">
         <i data-lucide="x" class="w-5 h-5 sm:w-6 sm:h-6"></i>
       </button>
+
+      <!-- Mobile Back to Search Header -->
+      <div class="sm:hidden flex items-center justify-between pb-1.5 border-b border-slate-200 dark:border-zinc-800 mb-1">
+        <button onclick="closeFamilyModal()" class="flex items-center gap-1.5 text-xs font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/70 hover:bg-emerald-200 dark:hover:bg-emerald-900/80 px-2.5 py-1 rounded-xl border border-emerald-300 dark:border-emerald-700 transition shadow-xs">
+          <i data-lucide="arrow-left" class="w-4 h-4"></i>
+          <span>← Back to Search</span>
+        </button>
+        <button onclick="closeFamilyModal()" class="text-slate-500 dark:text-zinc-400 hover:text-slate-700 dark:hover:text-white p-1 rounded-lg">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
 
       <!-- Target Elector Header with Controls -->
       <div class="border-b border-slate-200 dark:border-zinc-800 pb-2.5 sm:pb-3 pr-8 sm:pr-0">
@@ -1809,7 +1831,87 @@
       }
     });
 
+    // Modal & Mobile Back-Button History Navigation Manager
+    function pushModalHistory(modalName) {
+      try {
+        if (!window.history.state || window.history.state.modal !== modalName) {
+          window.history.pushState({ modal: modalName }, '');
+        }
+      } catch (e) {}
+    }
+
+    function closeModalWithHistory(modalName, directCloseFn) {
+      directCloseFn();
+      try {
+        if (window.history.state && window.history.state.modal === modalName) {
+          window.history.back();
+        }
+      } catch (e) {}
+    }
+
+    window.addEventListener('popstate', (event) => {
+      // 1. Household Slip Modal
+      const slipModal = document.getElementById('householdSlipModal');
+      if (slipModal && !slipModal.classList.contains('hidden')) {
+        closeHouseholdSlipModalDirect();
+        return;
+      }
+
+      // 2. Map Modal
+      const mapModal = document.getElementById('mapModal');
+      if (mapModal && !mapModal.classList.contains('hidden')) {
+        closeMapModalDirect();
+        return;
+      }
+
+      // 3. Family Tree Modal
+      const familyModal = document.getElementById('familyModal');
+      if (familyModal && !familyModal.classList.contains('hidden')) {
+        if (typeof familyTreeHistory !== 'undefined' && familyTreeHistory.length > 0) {
+          goBackFamilyTreeDirect();
+          return;
+        }
+        closeFamilyModalDirect();
+        return;
+      }
+
+      // 4. Voter Slip Modal
+      const voterModal = document.getElementById('voterModal');
+      if (voterModal && !voterModal.classList.contains('hidden')) {
+        closeModalDirect();
+        return;
+      }
+
+      // 5. AC Detail Modal
+      const acModal = document.getElementById('acDetailModal');
+      if (acModal && !acModal.classList.contains('hidden')) {
+        closeAcModalDirect();
+        return;
+      }
+
+      // 6. About Modal
+      const aboutModal = document.getElementById('aboutModal');
+      if (aboutModal && !aboutModal.classList.contains('hidden')) {
+        closeAboutModalDirect();
+        return;
+      }
+
+      // 7. NERIST Passkey Modal
+      const passkeyModal = document.getElementById('neristPasskeyModal');
+      if (passkeyModal && !passkeyModal.classList.contains('hidden')) {
+        closeNeristPasskeyModalDirect();
+        return;
+      }
+
+      // 8. Tab Navigation (Return to Search tab if on other tabs)
+      if (typeof state !== 'undefined' && state && state.currentTab && state.currentTab !== 'search') {
+        switchTab('search', true);
+        return;
+      }
+    });
+
     function openAboutModal() {
+      pushModalHistory('about');
       const modal = document.getElementById('aboutModal');
       if (modal) {
         modal.classList.remove('hidden');
@@ -1817,11 +1919,13 @@
       }
     }
 
-    function closeAboutModal() {
+    function closeAboutModalDirect() {
       const modal = document.getElementById('aboutModal');
-      if (modal) {
-        modal.classList.add('hidden');
-      }
+      if (modal) modal.classList.add('hidden');
+    }
+
+    function closeAboutModal() {
+      closeModalWithHistory('about', closeAboutModalDirect);
     }
 
     function escapeHtml(str) {
@@ -1980,7 +2084,18 @@
       executeSearch(1);
     });
 
-    function switchTab(tab) {
+    function switchTab(tab, isBackNavigation = false) {
+      if (typeof state !== 'undefined') {
+        state.currentTab = tab;
+      }
+      if (!isBackNavigation && tab !== 'search') {
+        try {
+          if (!window.history.state || window.history.state.tab !== tab) {
+            window.history.pushState({ tab: tab }, '');
+          }
+        } catch (e) {}
+      }
+
       document.getElementById('view-search').classList.add('hidden');
       document.getElementById('view-constituencies').classList.add('hidden');
       document.getElementById('view-rapid').classList.add('hidden');
@@ -2548,6 +2663,7 @@
         }
       }
 
+      pushModalHistory('voter');
       document.getElementById('voterModal').classList.remove('hidden');
       lucide.createIcons();
     }
@@ -2566,8 +2682,13 @@
       }
     }
 
+    function closeModalDirect() {
+      const modal = document.getElementById('voterModal');
+      if (modal) modal.classList.add('hidden');
+    }
+
     function closeModal() {
-      document.getElementById('voterModal').classList.add('hidden');
+      closeModalWithHistory('voter', closeModalDirect);
     }
 
     function openFamilyFromSlip() {
@@ -3077,6 +3198,9 @@
 
     // Interactive Family Tree Modal Logic
     async function openFamilyModal(voterId, voterName, isBackNavigation = false) {
+      if (!isBackNavigation) {
+        pushModalHistory('family');
+      }
       if (!isBackNavigation && currentHouseholdData && currentHouseholdData.target && currentHouseholdData.target.id && currentHouseholdData.target.id !== voterId) {
         familyTreeHistory.push({
           id: currentHouseholdData.target.id,
@@ -3797,6 +3921,7 @@
         }
       }
 
+      pushModalHistory('household_slip');
       document.getElementById('householdSlipModal').classList.remove('hidden');
       lucide.createIcons();
     }
@@ -3909,11 +4034,16 @@
       window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
     }
 
-    function closeHouseholdSlipModal() {
-      document.getElementById('householdSlipModal').classList.add('hidden');
+    function closeHouseholdSlipModalDirect() {
+      const modal = document.getElementById('householdSlipModal');
+      if (modal) modal.classList.add('hidden');
     }
 
-    function goBackFamilyTree() {
+    function closeHouseholdSlipModal() {
+      closeModalWithHistory('household_slip', closeHouseholdSlipModalDirect);
+    }
+
+    function goBackFamilyTreeDirect() {
       if (familyTreeHistory && familyTreeHistory.length > 0) {
         if (currentHouseholdData && currentHouseholdData.target) {
           familyTreeForwardHistory.push({
@@ -3924,7 +4054,15 @@
         const prev = familyTreeHistory.pop();
         openFamilyModal(prev.id, prev.name, true);
       } else {
-        closeFamilyModal();
+        closeFamilyModalDirect();
+      }
+    }
+
+    function goBackFamilyTree() {
+      if (window.history.state && window.history.state.modal === 'family' && familyTreeHistory && familyTreeHistory.length > 0) {
+        window.history.back();
+      } else {
+        goBackFamilyTreeDirect();
       }
     }
 
@@ -3941,14 +4079,19 @@
       }
     }
 
-    function closeFamilyModal() {
+    function closeFamilyModalDirect() {
       familyTreeHistory = [];
       familyTreeForwardHistory = [];
       const backBtn = document.getElementById('ft-back-btn');
       if (backBtn) backBtn.classList.add('hidden');
       const fwdBtn = document.getElementById('ft-fwd-btn');
       if (fwdBtn) fwdBtn.classList.add('hidden');
-      document.getElementById('familyModal').classList.add('hidden');
+      const modal = document.getElementById('familyModal');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    function closeFamilyModal() {
+      closeModalWithHistory('family', closeFamilyModalDirect);
     }
 
     async function exportFamilyTreeImage() {
@@ -4130,6 +4273,7 @@
 
     async function openHouseholdMap(voterId, voterPreload = null) {
       if (!voterId) return;
+      pushModalHistory('map');
       currentMapVoterId = voterId;
       document.getElementById('mapModal').classList.remove('hidden');
       lucide.createIcons();
@@ -4319,8 +4463,13 @@
       }
     }
 
+    function closeMapModalDirect() {
+      const modal = document.getElementById('mapModal');
+      if (modal) modal.classList.add('hidden');
+    }
+
     function closeMapModal() {
-      document.getElementById('mapModal').classList.add('hidden');
+      closeModalWithHistory('map', closeMapModalDirect);
     }
 
     function openFamilyFromMap() {
@@ -4487,6 +4636,7 @@
 
     async function showAcDetail(ac_no) {
       state.activeModalAc = ac_no;
+      pushModalHistory('ac');
       try {
         const res = await fetch(`/api/constituency/${ac_no}`);
         const data = await res.json();
@@ -4527,8 +4677,13 @@
       }
     }
 
+    function closeAcModalDirect() {
+      const modal = document.getElementById('acDetailModal');
+      if (modal) modal.classList.add('hidden');
+    }
+
     function closeAcModal() {
-      document.getElementById('acDetailModal').classList.add('hidden');
+      closeModalWithHistory('ac', closeAcModalDirect);
     }
 
     function searchAcVoters() {
@@ -4753,6 +4908,7 @@
     }
 
     function openNeristPasskeyModal() {
+      pushModalHistory('passkey');
       const modal = document.getElementById('neristPasskeyModal');
       const err = document.getElementById('neristPasskeyError');
       const input = document.getElementById('neristPasskeyInput');
@@ -4767,9 +4923,13 @@
       }
     }
 
-    function closeNeristPasskeyModal() {
+    function closeNeristPasskeyModalDirect() {
       const modal = document.getElementById('neristPasskeyModal');
       if (modal) modal.classList.add('hidden');
+    }
+
+    function closeNeristPasskeyModal() {
+      closeModalWithHistory('passkey', closeNeristPasskeyModalDirect);
     }
 
     function togglePasskeyVisibility() {
