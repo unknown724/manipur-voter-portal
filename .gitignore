@@ -1,5 +1,6 @@
 # Database & Large Data
 voters.db
+telemetry.db
 *.db-journal
 *.sqlite3
 uploads/

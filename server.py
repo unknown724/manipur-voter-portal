@@ -6,6 +6,7 @@ Provides REST APIs for voter search, constituency analytics, and PDF electoral r
 import os
 import re
 import math
+import time
 import shutil
 import base64
 import json
@@ -13,13 +14,23 @@ import difflib
 import requests
 import urllib.parse
 from typing import Optional, List
-from fastapi import FastAPI, UploadFile, File, Query, HTTPException, Body, Header
+from fastapi import FastAPI, UploadFile, File, Query, HTTPException, Body, Header, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from database import get_connection, init_db, update_constituency_stats
 from pdf_parser import parse_electoral_roll_pdf
+from telemetry import (
+    init_telemetry_db,
+    extract_client_ip,
+    log_api_request,
+    get_learned_synonym,
+    record_click_feedback,
+    record_kinship_feedback,
+    get_telemetry_summary,
+    export_telemetry_csv,
+)
 
 app = FastAPI(title="Manipur Voter Search Portal", version="1.0.0")
 
@@ -47,6 +58,46 @@ if os.path.exists(OFFICIAL_ACS_FILE):
     except Exception:
         pass
 
+# Load official 2022 Manipur Assembly Election Form 20 (booth-wise turnout & candidate votes)
+ELECTION_2022_FILE = os.path.join(BASE_DIR, "election_2022_form20.json")
+ELECTION_2022_DATA = {}
+if os.path.exists(ELECTION_2022_FILE):
+    try:
+        with open(ELECTION_2022_FILE, "r", encoding="utf-8") as f:
+            ELECTION_2022_DATA = json.load(f)
+    except Exception:
+        pass
+
+# Load unified 2012 -> 2017 -> 2022 historical election dataset
+ELECTION_HISTORY_FILE = os.path.join(BASE_DIR, "election_history.json")
+ELECTION_HISTORY_DATA = {}
+if os.path.exists(ELECTION_HISTORY_FILE):
+    try:
+        with open(ELECTION_HISTORY_FILE, "r", encoding="utf-8") as f:
+            ELECTION_HISTORY_DATA = json.load(f)
+    except Exception:
+        pass
+
+# Load official 2024 Manipur Lok Sabha Form 20 (60 AC segments, 2,902 booths)
+ELECTION_2024_FILE = os.path.join(BASE_DIR, "election_2024_form20.json")
+ELECTION_2024_DATA = {}
+if os.path.exists(ELECTION_2024_FILE):
+    try:
+        with open(ELECTION_2024_FILE, "r", encoding="utf-8") as f:
+            ELECTION_2024_DATA = json.load(f)
+    except Exception:
+        pass
+
+# Load ADR / MyNeta Candidate Affidavits (2022 & 2017)
+CANDIDATE_AFFIDAVITS_FILE = os.path.join(BASE_DIR, "candidate_affidavits.json")
+CANDIDATE_AFFIDAVITS_DATA = {}
+if os.path.exists(CANDIDATE_AFFIDAVITS_FILE):
+    try:
+        with open(CANDIDATE_AFFIDAVITS_FILE, "r", encoding="utf-8") as f:
+            CANDIDATE_AFFIDAVITS_DATA = json.load(f)
+    except Exception:
+        pass
+
 # Persistent session dictionary for rapid downloader
 DOWNLOAD_SESSIONS = {}
 
@@ -66,6 +117,33 @@ def get_or_create_session(session_id: str = "default") -> requests.Session:
 @app.on_event("startup")
 def startup_event():
     init_db()
+    init_telemetry_db()
+
+@app.middleware("http")
+async def audit_telemetry_middleware(request: Request, call_next):
+    path = request.url.path
+    t0 = time.perf_counter()
+    response = await call_next(request)
+    elapsed_ms = (time.perf_counter() - t0) * 1000.0
+    if path.startswith("/api/") and not path.startswith("/api/admin/") and not path.startswith("/api/telemetry/") and path != "/api/stats":
+        try:
+            if path != "/api/search":  # /api/search logs itself with exact result_count
+                client_ip = extract_client_ip(request)
+                qp = request.query_params
+                ac_val = int(qp["ac_no"]) if qp.get("ac_no") and qp["ac_no"].isdigit() else None
+                log_api_request(
+                    client_ip=client_ip,
+                    endpoint=path,
+                    query_text=qp.get("q"),
+                    ac_no=ac_val,
+                    gender=qp.get("gender"),
+                    result_count=None,
+                    response_time_ms=elapsed_ms,
+                    user_agent=request.headers.get("user-agent"),
+                )
+        except Exception:
+            pass
+    return response
 
 _cached_stats = None
 
@@ -173,6 +251,36 @@ def get_constituency_detail(ac_no: int):
     smallest_booths = sorted(polling_stations, key=lambda x: x["voter_count"])[:3]
 
     conn.close()
+
+    # Attach official 2022 Form 20 election turnout & booth-wise leader
+    ac_e22 = ELECTION_2022_DATA.get(str(ac_no))
+    election_summary = None
+    if ac_e22:
+        booths_map = ac_e22.get("booths", {})
+        cands = ac_e22.get("candidates", [])
+        for ps in polling_stations:
+            b22 = booths_map.get(str(ps["part_no"]))
+            if b22:
+                b_votes = b22.get("votes", [])
+                top_idx = max(range(len(b_votes)), key=lambda i: b_votes[i]) if b_votes else None
+                ps["polled_2022"] = b22.get("total_polled", 0)
+                ps["leader_2022"] = cands[top_idx] if (top_idx is not None and top_idx < len(cands)) else None
+                ps["leader_votes_2022"] = b_votes[top_idx] if top_idx is not None else 0
+        election_summary = {
+            "year": 2022,
+            "turnout_pct": ac_e22.get("turnout_pct"),
+            "total_polled": ac_e22.get("total_polled"),
+            "total_electors_2022": ac_e22.get("total_electors_2022"),
+            "winner": ac_e22.get("winner"),
+            "winner_party": ac_e22.get("winner_party"),
+            "winner_votes": ac_e22.get("winner_votes"),
+            "runner_up": ac_e22.get("runner_up"),
+            "runner_up_votes": ac_e22.get("runner_up_votes"),
+            "margin": ac_e22.get("margin"),
+            "nota": ac_e22.get("nota"),
+            "candidate_totals": ac_e22.get("candidate_totals", []),
+        }
+
     return {
         "constituency": dict(ac_row),
         "summary": {
@@ -182,6 +290,7 @@ def get_constituency_detail(ac_no: int):
             "sex_ratio": sex_ratio,
             "total_booths": len(polling_stations)
         },
+        "election_2022": election_summary,
         "polling_stations": polling_stations,
         "age_distribution": age_groups,
         "largest_booths": largest_booths,
@@ -396,6 +505,7 @@ def get_search_suggestions(q: str = Query(..., min_length=2), ac_no: Optional[in
 
 @app.get("/api/search")
 def search_voters(
+    request: Request,
     q: Optional[str] = Query(None, description="Search query (name, relative name, EPIC, or area)"),
     ac_no: Optional[int] = Query(None, description="Filter by Assembly Constituency number"),
     gender: Optional[str] = Query(None, description="Filter by gender (M/F/O)"),
@@ -404,6 +514,7 @@ def search_voters(
     page: int = Query(1, ge=1),
     limit: int = Query(25, ge=1, le=100)
 ):
+    t_start = time.perf_counter()
     offset = (page - 1) * limit
     conn = get_connection()
     cursor = conn.cursor()
@@ -509,9 +620,9 @@ def search_voters(
 
     total_results, results = execute_query_run(clean_q)
 
-    # Automatic fallback: If zero results and typo is detected, run with corrected query
+    # Automatic fallback: If zero results, check self-learned synonyms first, then static typo correction
     if total_results == 0 and clean_q:
-        suggested = correct_spelling(clean_q)
+        suggested = get_learned_synonym(clean_q) or correct_spelling(clean_q)
         if suggested and suggested.lower() != clean_q.lower():
             fb_total, fb_results = execute_query_run(suggested)
             if fb_total > 0:
@@ -520,6 +631,21 @@ def search_voters(
                 did_you_mean = suggested
 
     conn.close()
+
+    try:
+        if request is not None:
+            log_api_request(
+                client_ip=extract_client_ip(request),
+                endpoint="/api/search",
+                query_text=clean_q,
+                ac_no=ac_no,
+                gender=gender,
+                result_count=total_results,
+                response_time_ms=(time.perf_counter() - t_start) * 1000.0,
+                user_agent=request.headers.get("user-agent"),
+            )
+    except Exception:
+        pass
 
     return {
         "total": total_results,
@@ -2381,8 +2507,29 @@ def get_voter_household_map(voter_id: int):
     head_id = head.get("id")
     family_members.sort(key=lambda m: (0 if m.get("id") == head_id else 1, -(int(m.get("age") or 0))))
 
+    booth_election_2022 = None
+    ac_e22 = ELECTION_2022_DATA.get(str(anchor_ac))
+    if ac_e22:
+        b22 = ac_e22.get("booths", {}).get(str(anchor_part))
+        if b22:
+            cands = ac_e22.get("candidates", [])
+            b_votes = b22.get("votes", [])
+            ranked_booth = sorted(
+                [{"name": cands[i], "votes": b_votes[i]} for i in range(min(len(cands), len(b_votes)))],
+                key=lambda x: x["votes"],
+                reverse=True,
+            )
+            booth_election_2022 = {
+                "year": 2022,
+                "total_polled": b22.get("total_polled", 0),
+                "nota": b22.get("nota", 0),
+                "winner_party_ac": ac_e22.get("winner_party"),
+                "candidates": ranked_booth,
+            }
+
     return {
         "success": True,
+        "booth_election_2022": booth_election_2022,
         "elector_info": {
             "voter_id": target.get("id"),
             "name": target.get("name"),
@@ -2902,11 +3049,820 @@ def get_nerist_students(
         "students": students
     }
 
+@app.post("/api/telemetry/click")
+def api_telemetry_click(request: Request, payload: dict = Body(...)):
+    try:
+        record_click_feedback(
+            client_ip=extract_client_ip(request),
+            query_text=payload.get("query_text"),
+            voter_id=payload.get("voter_id"),
+            voter_name=payload.get("voter_name"),
+            action_type=payload.get("action_type", "click"),
+        )
+    except Exception:
+        pass
+    return {"success": True}
+
+@app.post("/api/telemetry/kinship_feedback")
+def api_kinship_feedback(request: Request, payload: dict = Body(...)):
+    target_id = payload.get("target_id")
+    verdict = payload.get("verdict")
+    if not target_id or verdict not in ("correct", "mismatch"):
+        raise HTTPException(status_code=400, detail="target_id and verdict ('correct'|'mismatch') required")
+    record_kinship_feedback(
+        client_ip=extract_client_ip(request),
+        target_id=int(target_id),
+        relative_id=payload.get("relative_id"),
+        relationship_type=payload.get("relationship_type"),
+        verdict=verdict,
+        note=payload.get("note"),
+    )
+    return {"success": True}
+
+@app.get("/api/admin/telemetry")
+def api_admin_telemetry(
+    limit: int = Query(100, ge=1, le=500),
+    passkey: Optional[str] = None,
+    x_passkey: Optional[str] = Header(None),
+):
+    admin_key = os.environ.get("ADMIN_PASSKEY", TARGET_NERIST_PASSKEY)
+    if passkey != admin_key and x_passkey != admin_key and passkey != TARGET_NERIST_PASSKEY and x_passkey != TARGET_NERIST_PASSKEY:
+        raise HTTPException(status_code=401, detail="Valid admin passkey required.")
+    return {"success": True, **get_telemetry_summary(limit=limit)}
+
+@app.get("/api/admin/telemetry/export_csv")
+def api_admin_telemetry_export_csv(
+    passkey: Optional[str] = None,
+    x_passkey: Optional[str] = Header(None),
+):
+    admin_key = os.environ.get("ADMIN_PASSKEY", TARGET_NERIST_PASSKEY)
+    if passkey != admin_key and x_passkey != admin_key and passkey != TARGET_NERIST_PASSKEY and x_passkey != TARGET_NERIST_PASSKEY:
+        raise HTTPException(status_code=401, detail="Valid admin passkey required.")
+    csv_data = export_telemetry_csv()
+    return Response(
+        content=csv_data,
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="voter_portal_audit_logs.csv"'},
+    )
+
+@app.get("/api/elections/overview")
+def get_elections_overview():
+    if not ELECTION_HISTORY_DATA:
+        raise HTTPException(status_code=404, detail="Election history dataset not loaded")
+    aff_by_ac = CANDIDATE_AFFIDAVITS_DATA.get("by_ac_2022", {})
+    crorepati_winners = 0
+    criminal_winners = 0
+    party_switchers_total = 0
+
+    acs = []
+    for i in range(1, 61):
+        key = str(i)
+        if key not in ELECTION_HISTORY_DATA:
+            continue
+        item = dict(ELECTION_HISTORY_DATA[key])
+        region = "Jiribam" if i == 40 else ("Imphal Valley" if i <= 39 else "Hill Districts")
+        item["region"] = region
+        e24 = ELECTION_2024_DATA.get(key, {})
+        polled_24 = e24.get("total_polled", 0) or 0
+        margin_24 = e24.get("margin", 0) or 0
+        t24 = e24.get("turnout_pct", 0.0) or 0.0
+        t22 = item["y2022"].get("turnout_pct", 0.0) or 0.0
+        item["y2024"] = {
+            "pc_name": e24.get("pc_name", "Inner Manipur" if i <= 32 else "Outer Manipur (ST)"),
+            "leader": e24.get("leader", "N/A"),
+            "party": e24.get("leader_party", "IND"),
+            "leader_votes": e24.get("leader_votes", 0),
+            "runner_up": e24.get("runner_up", "N/A"),
+            "runner_up_votes": e24.get("runner_up_votes", 0),
+            "margin": margin_24,
+            "margin_pct": round((margin_24 / polled_24) * 100, 2) if polled_24 else 0.0,
+            "turnout_pct": t24,
+            "total_polled": polled_24,
+            "turnout_delta_22_24": round(t24 - t22, 2),
+            "booths_count": len(e24.get("booths", {})),
+        }
+
+        ac_affs = aff_by_ac.get(key, [])
+        winner_aff = next((c for c in ac_affs if c.get("is_winner")), None) or (ac_affs[0] if ac_affs else None)
+        switchers_in_ac = [c for c in ac_affs if c.get("is_party_switcher")]
+        party_switchers_total += len(switchers_in_ac)
+        if winner_aff:
+            if (winner_aff.get("total_assets_inr") or 0) >= 10_000_000:
+                crorepati_winners += 1
+            if (winner_aff.get("criminal_cases") or 0) > 0:
+                criminal_winners += 1
+        item["affidavit_summary"] = {
+            "candidates_count": len(ac_affs),
+            "winner_assets_inr": winner_aff.get("total_assets_inr", 0) if winner_aff else 0,
+            "winner_assets_display": winner_aff.get("total_assets_display", "N/A") if winner_aff else "N/A",
+            "winner_criminal_cases": winner_aff.get("criminal_cases", 0) if winner_aff else 0,
+            "winner_education": winner_aff.get("education", "N/A") if winner_aff else "N/A",
+            "winner_party_2017": winner_aff.get("party_2017") if winner_aff else None,
+            "winner_is_switcher": bool(winner_aff.get("is_party_switcher")) if winner_aff else False,
+            "switchers_count": len(switchers_in_ac),
+        }
+        acs.append(item)
+
+    # 4-Cycle Party Seat/Lead Trajectories (2012 -> 2017 -> 2022 -> 2024 LS AC leads)
+    parties = ["BJP", "INC", "NPP", "NPF", "JD(U)", "AITC", "KPA", "MSCP", "LJP", "NCP", "IND"]
+    party_trajectory = []
+    for p in parties:
+        s12 = sum(1 for a in acs if a["y2012"]["party"] == p)
+        s17 = sum(1 for a in acs if a["y2017"]["party"] == p)
+        s22 = sum(1 for a in acs if a["y2022"]["party"] == p)
+        s24 = sum(1 for a in acs if a["y2024"]["party"] == p)
+        if s12 or s17 or s22 or s24:
+            growth_17_22_pct = round(((s22 - s17) / s17) * 100, 1) if s17 > 0 else (100.0 if s22 > 0 else 0.0)
+            growth_22_24_pct = round(((s24 - s22) / s22) * 100, 1) if s22 > 0 else (100.0 if s24 > 0 else 0.0)
+            party_trajectory.append({
+                "party": p,
+                "y2012": s12,
+                "y2017": s17,
+                "y2022": s22,
+                "y2024": s24,
+                "delta_17_22": s22 - s17,
+                "delta_22_24": s24 - s22,
+                "growth_17_22_pct": growth_17_22_pct,
+                "growth_22_24_pct": growth_22_24_pct,
+            })
+    party_trajectory.sort(key=lambda x: (-x["y2022"], -x["y2024"], -x["y2017"]))
+
+    # Regional / Area Breakdown (Imphal Valley vs Hill Districts vs Jiribam)
+    area_breakdown = []
+    for reg in ["Imphal Valley", "Hill Districts", "Jiribam"]:
+        sub = [a for a in acs if a["region"] == reg]
+        if not sub:
+            continue
+        p_stats = []
+        for p in ["BJP", "INC", "NPP", "NPF", "JD(U)", "KPA", "IND"]:
+            c12 = sum(1 for a in sub if a["y2012"]["party"] == p)
+            c17 = sum(1 for a in sub if a["y2017"]["party"] == p)
+            c22 = sum(1 for a in sub if a["y2022"]["party"] == p)
+            c24 = sum(1 for a in sub if a["y2024"]["party"] == p)
+            if c12 or c17 or c22 or c24:
+                g_pct = round(((c22 - c17) / c17) * 100, 1) if c17 > 0 else (100.0 if c22 > 0 else 0.0)
+                p_stats.append({"party": p, "y2012": c12, "y2017": c17, "y2022": c22, "y2024": c24, "delta_17_22": c22 - c17, "growth_17_22_pct": g_pct})
+        avg_t22 = round(sum(a["y2022"]["turnout_pct"] for a in sub) / len(sub), 2)
+        avg_t24 = round(sum(a["y2024"]["turnout_pct"] for a in sub) / len(sub), 2)
+        area_breakdown.append({
+            "region": reg,
+            "total_acs": len(sub),
+            "avg_turnout_2022": avg_t22,
+            "avg_turnout_2024": avg_t24,
+            "turnout_delta": round(avg_t24 - avg_t22, 2),
+            "parties": p_stats,
+        })
+
+    # District-level Breakdown
+    district_breakdown = []
+    seen_dists = sorted(set(a["district"] for a in acs))
+    for dist in seen_dists:
+        sub = [a for a in acs if a["district"] == dist]
+        avg_t22 = round(sum(a["y2022"]["turnout_pct"] for a in sub) / len(sub), 2)
+        avg_t24 = round(sum(a["y2024"]["turnout_pct"] for a in sub) / len(sub), 2)
+        dom22 = max(["BJP", "INC", "NPP", "NPF", "JD(U)", "KPA", "IND"], key=lambda p: sum(1 for a in sub if a["y2022"]["party"] == p))
+        bjp_17 = sum(1 for a in sub if a["y2017"]["party"] == "BJP")
+        bjp_22 = sum(1 for a in sub if a["y2022"]["party"] == "BJP")
+        inc_17 = sum(1 for a in sub if a["y2017"]["party"] == "INC")
+        inc_22 = sum(1 for a in sub if a["y2022"]["party"] == "INC")
+        district_breakdown.append({
+            "district": dist,
+            "total_acs": len(sub),
+            "avg_turnout_2022": avg_t22,
+            "avg_turnout_2024": avg_t24,
+            "turnout_delta": round(avg_t24 - avg_t22, 2),
+            "dominant_2022": dom22,
+            "bjp_delta": bjp_22 - bjp_17,
+            "inc_delta": inc_22 - inc_17,
+        })
+
+    total_elec_22 = sum(a["y2022"]["total_electors_2022"] for a in acs)
+    total_polled_22 = sum(a["y2022"]["total_polled"] for a in acs)
+    state_turnout_22 = round((total_polled_22 / total_elec_22) * 100, 2) if total_elec_22 else 0.0
+
+    total_elec_24 = sum(ELECTION_2024_DATA.get(str(a["ac_no"]), {}).get("total_electors_2024", 0) for a in acs)
+    total_polled_24 = sum(a["y2024"]["total_polled"] for a in acs)
+    state_turnout_24 = round((total_polled_24 / total_elec_24) * 100, 2) if total_elec_24 else 0.0
+
+    return {
+        "success": True,
+        "summary": {
+            "total_seats": len(acs),
+            "state_turnout_2022": state_turnout_22,
+            "state_turnout_2024": state_turnout_24,
+            "total_polled_2022": total_polled_22,
+            "total_polled_2024": total_polled_24,
+            "battleground_count": sum(1 for a in acs if a["classification"] == "BATTLEGROUND"),
+            "flipped_count": sum(1 for a in acs if a["flipped_2017_to_2022"]),
+            "youth_decisive_count": sum(1 for a in acs if a["youth_exceeds_margin"]),
+            "turncoat_holds": sum(1 for a in acs if a["is_turncoat_hold"]),
+            "crorepati_winners_count": crorepati_winners,
+            "criminal_cases_winners_count": criminal_winners,
+            "party_switchers_count": party_switchers_total,
+        },
+        "party_trajectory": party_trajectory,
+        "area_breakdown": area_breakdown,
+        "district_breakdown": district_breakdown,
+        "constituencies": acs,
+    }
+
+
+@app.get("/api/elections/ac/{ac_no}")
+def get_election_ac_detail(ac_no: int):
+    ac_hist = ELECTION_HISTORY_DATA.get(str(ac_no))
+    if not ac_hist:
+        raise HTTPException(status_code=404, detail="Election data not found for AC")
+
+    ac_e22 = ELECTION_2022_DATA.get(str(ac_no), {})
+    ac_e24 = ELECTION_2024_DATA.get(str(ac_no), {})
+    cands_22 = ac_e22.get("candidates", [])
+    booths_22 = ac_e22.get("booths", {})
+    cands_24 = ac_e24.get("candidates", [])
+    booths_24 = ac_e24.get("booths", {})
+    ac_winner_22 = (ac_hist.get("y2022") or {}).get("winner", "")
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        # Per-booth demographic roll analytics (age cohorts, gender ratio, deleted/shifted flags, household density)
+        cur.execute(
+            """
+            SELECT part_no,
+                   MAX(polling_station_name) AS polling_station_name,
+                   COUNT(*) AS curr_voters,
+                   SUM(CASE WHEN age BETWEEN 18 AND 29 THEN 1 ELSE 0 END) AS youth_18_29,
+                   SUM(CASE WHEN age BETWEEN 30 AND 49 THEN 1 ELSE 0 END) AS mid_30_49,
+                   SUM(CASE WHEN age >= 50 THEN 1 ELSE 0 END) AS senior_50_plus,
+                   SUM(CASE WHEN gender = 'M' THEN 1 ELSE 0 END) AS male_count,
+                   SUM(CASE WHEN gender = 'F' THEN 1 ELSE 0 END) AS female_count,
+                   SUM(CASE WHEN status != 'ACTIVE' THEN 1 ELSE 0 END) AS deleted_count,
+                   COUNT(DISTINCT CASE WHEN house_no IS NOT NULL AND house_no NOT IN ('', '-', '0', 'N/A') THEN house_no END) AS distinct_households
+            FROM voters
+            WHERE ac_no = ?
+            GROUP BY part_no
+            """,
+            (ac_no,),
+        )
+        booth_names = {r["part_no"]: dict(r) for r in cur.fetchall()}
+
+        # Polling station geo coordinates
+        cur.execute(
+            "SELECT part_no, latitude, longitude, source FROM polling_station_geo WHERE ac_no = ?",
+            (ac_no,),
+        )
+        booth_geo = {r["part_no"]: {"latitude": r["latitude"], "longitude": r["longitude"], "source": r["source"]} for r in cur.fetchall()}
+
+        # Large household count (4+ electors) per part
+        cur.execute(
+            """
+            SELECT part_no, COUNT(*) AS large_hh_4_plus
+            FROM (
+                SELECT part_no, house_no, COUNT(*) AS c
+                FROM voters
+                WHERE ac_no = ? AND house_no IS NOT NULL AND house_no NOT IN ('', '-', '0', 'N/A')
+                GROUP BY part_no, house_no
+                HAVING c >= 4
+            )
+            GROUP BY part_no
+            """,
+            (ac_no,),
+        )
+        large_hh_by_part = {r["part_no"]: r["large_hh_4_plus"] for r in cur.fetchall()}
+
+        # Top surname/clan cluster density per part
+        cur.execute("SELECT part_no, name FROM voters WHERE ac_no = ? AND status = 'ACTIVE'", (ac_no,))
+        surname_counts_by_part = {}
+        part_active_totals = {}
+        for r in cur.fetchall():
+            pno = r["part_no"]
+            part_active_totals[pno] = part_active_totals.get(pno, 0) + 1
+            parts_tok = (r["name"] or "").strip().split()
+            if parts_tok:
+                # In Manipur, family/clan surname is typically the first token (e.g., Konsam, Thokchom) or last token
+                clan = parts_tok[0].upper() if len(parts_tok[0]) >= 3 else (parts_tok[-1].upper() if parts_tok else "")
+                if clan and clan not in ("MD", "MR", "MS", "DR", "KM", "LATE"):
+                    d = surname_counts_by_part.setdefault(pno, {})
+                    d[clan] = d.get(clan, 0) + 1
+
+        # Top large households (4+ electors) per part in this AC for War Room mobilization
+        cur.execute(
+            """
+            SELECT part_no, house_no, COUNT(*) as mem_cnt, MIN(id) as sample_voter_id,
+                   SUM(CASE WHEN age BETWEEN 18 AND 29 THEN 1 ELSE 0 END) as youth_count,
+                   SUM(CASE WHEN status != 'ACTIVE' THEN 1 ELSE 0 END) as deleted_count,
+                   MAX(CASE WHEN age >= 45 THEN name ELSE '' END) as elder_name,
+                   MAX(name) as fallback_name,
+                   MAX(polling_station_name) as polling_station_name
+            FROM voters
+            WHERE ac_no = ? AND house_no IS NOT NULL AND house_no NOT IN ('', '-', '0', 'N/A')
+            GROUP BY part_no, house_no
+            HAVING mem_cnt >= 4
+            ORDER BY mem_cnt DESC
+            """,
+            (ac_no,),
+        )
+        large_households = [dict(r) for r in cur.fetchall()]
+    finally:
+        conn.close()
+
+    all_parts = sorted(set(list(booths_22.keys()) + list(booths_24.keys())), key=lambda x: int(x) if str(x).isdigit() else 9999)
+    booths_list = []
+    quadrant_counts = {"A_FORTRESS": 0, "B_SWING": 0, "C_GOTV": 0, "D_TRAILING": 0}
+
+    for pkey in all_parts:
+        b22 = booths_22.get(pkey, {})
+        b24 = booths_24.get(pkey, {})
+        pno = b22.get("part_no") or b24.get("part_no") or (int(pkey) if str(pkey).isdigit() else 0)
+
+        votes22 = b22.get("votes", [])
+        polled22 = b22.get("total_polled", 0) or 0
+        paired22 = sorted(
+            [{"name": cands_22[i], "votes": votes22[i]} for i in range(min(len(cands_22), len(votes22)))],
+            key=lambda x: x["votes"],
+            reverse=True,
+        )
+        top1_22 = paired22[0] if paired22 else {"name": "N/A", "votes": 0}
+        top2_22 = paired22[1] if len(paired22) > 1 else {"name": "N/A", "votes": 0}
+        margin_22 = top1_22["votes"] - top2_22["votes"]
+        margin_22_pct = round((margin_22 / (polled22 or 1)) * 100, 1)
+
+        votes24 = b24.get("votes", [])
+        polled24 = b24.get("total_polled", 0) or 0
+        paired24 = sorted(
+            [{"name": cands_24[i], "votes": votes24[i]} for i in range(min(len(cands_24), len(votes24)))],
+            key=lambda x: x["votes"],
+            reverse=True,
+        )
+        top1_24 = paired24[0] if paired24 else {"name": "N/A", "votes": 0}
+        top2_24 = paired24[1] if len(paired24) > 1 else {"name": "N/A", "votes": 0}
+        margin_24 = top1_24["votes"] - top2_24["votes"]
+        margin_24_pct = round((margin_24 / (polled24 or 1)) * 100, 1)
+
+        b_meta = booth_names.get(pno, {})
+        curr_v = b_meta.get("curr_voters", 0)
+        est_t22 = round((polled22 / curr_v) * 100, 1) if (curr_v and polled22) else None
+        est_t24 = round((polled24 / curr_v) * 100, 1) if (curr_v and polled24) else None
+        t_delta = round(est_t24 - est_t22, 1) if (est_t24 is not None and est_t22 is not None) else None
+
+        # Multi-Year Swing Index, Volatility, and Turnout Elasticity
+        swing_index = round(margin_24_pct - margin_22_pct, 1) if (polled22 and polled24) else None
+        volatility_score = round(abs(margin_24_pct - margin_22_pct), 1) if (polled22 and polled24) else 0.0
+        turnout_elasticity = (
+            round((margin_24_pct - margin_22_pct) / t_delta, 2)
+            if (t_delta is not None and abs(t_delta) >= 1.0 and polled22 and polled24)
+            else None
+        )
+
+        # Target votes calculation ("votes needed to flip/hold")
+        is_ac_winner_leading = (top1_22["name"] == ac_winner_22)
+        if not is_ac_winner_leading and polled22 > 0:
+            # Find AC winner's votes in this booth to compute exact flip target
+            ac_win_booth_votes = next((c["votes"] for c in paired22 if c["name"] == ac_winner_22), 0)
+            gap = max(0, top1_22["votes"] - ac_win_booth_votes)
+            target_votes = (gap // 2) + 1
+            target_action = "FLIP"
+        elif polled22 > 0 and est_t22 is not None and est_t22 < 75.0:
+            target_votes = max(1, round(curr_v * 0.78) - polled22)
+            target_action = "GOTV"
+        else:
+            target_votes = margin_22
+            target_action = "HOLD"
+
+        # Demographic roll analytics for this booth
+        y_18_29 = b_meta.get("youth_18_29", 0) or 0
+        m_30_49 = b_meta.get("mid_30_49", 0) or 0
+        s_50_p = b_meta.get("senior_50_plus", 0) or 0
+        m_cnt = b_meta.get("male_count", 0) or 0
+        f_cnt = b_meta.get("female_count", 0) or 0
+        g_ratio = round((f_cnt / m_cnt) * 1000, 1) if m_cnt > 0 else 0.0
+        youth_pct = round((y_18_29 / curr_v) * 100, 1) if curr_v > 0 else 0.0
+        del_cnt = b_meta.get("deleted_count", 0) or 0
+        dist_hh = b_meta.get("distinct_households", 0) or 0
+        hh_4plus = large_hh_by_part.get(pno, 0)
+
+        sc_dict = surname_counts_by_part.get(pno, {})
+        top_surname = max(sc_dict.items(), key=lambda kv: kv[1])[0].title() if sc_dict else "Mixed"
+        top_surname_cnt = max(sc_dict.values()) if sc_dict else 0
+        p_act = part_active_totals.get(pno, 0) or 1
+        surname_cluster_pct = round((top_surname_cnt / p_act) * 100, 1) if sc_dict else 0.0
+
+        # 4-Quadrant Classification for 2022
+        is_swing = margin_22_pct < 5.0 and polled22 > 0
+        is_low_t = (est_t22 is not None and est_t22 < 75.0)
+        if is_swing:
+            quadrant = "B_SWING"
+        elif is_low_t:
+            quadrant = "C_GOTV"
+        elif margin_22_pct >= 15.0:
+            quadrant = "A_FORTRESS"
+        else:
+            quadrant = "D_TRAILING"
+        quadrant_counts[quadrant] += 1
+
+        # 4-Quadrant Classification for 2024 LS
+        is_swing_24 = margin_24_pct < 5.0 and polled24 > 0
+        is_low_t_24 = (est_t24 is not None and est_t24 < 70.0)
+        if is_swing_24:
+            quadrant_2024 = "B_SWING"
+        elif is_low_t_24:
+            quadrant_2024 = "C_GOTV"
+        elif margin_24_pct >= 15.0:
+            quadrant_2024 = "A_FORTRESS"
+        else:
+            quadrant_2024 = "D_TRAILING"
+
+        # Multi-Year Booth Trajectory Tag
+        if quadrant == "A_FORTRESS" and quadrant_2024 == "A_FORTRESS":
+            traj_tag = "Consistent Stronghold"
+        elif is_swing and is_swing_24:
+            traj_tag = "Persistent Close Fight"
+        elif t_delta is not None and t_delta <= -10.0:
+            traj_tag = "Turnout Drop"
+        elif t_delta is not None and t_delta >= 5.0:
+            traj_tag = "Turnout Surge"
+        elif quadrant != quadrant_2024:
+            traj_tag = "Shifted '22→'24"
+        else:
+            traj_tag = "Stable"
+
+        booths_list.append({
+            "part_no": pno,
+            "polling_station_name": b_meta.get("polling_station_name") or f"Part #{pno}",
+            "curr_voters": curr_v,
+            "total_polled_2022": polled22,
+            "total_polled_2024": polled24,
+            "est_turnout_2022": est_t22,
+            "est_turnout_2024": est_t24,
+            "turnout_delta_22_24": t_delta,
+            "swing_index": swing_index,
+            "volatility_score": volatility_score,
+            "turnout_elasticity": turnout_elasticity,
+            "target_votes": target_votes,
+            "target_action": target_action,
+            "demographics": {
+                "youth_18_29": y_18_29,
+                "mid_30_49": m_30_49,
+                "senior_50_plus": s_50_p,
+                "youth_pct": youth_pct,
+                "male_count": m_cnt,
+                "female_count": f_cnt,
+                "gender_ratio": g_ratio,
+                "deleted_count": del_cnt,
+                "distinct_households": dist_hh,
+                "large_hh_4_plus": hh_4plus,
+                "top_surname": top_surname,
+                "surname_cluster_pct": surname_cluster_pct,
+            },
+            "geo": booth_geo.get(pno),
+            "nota_2022": b22.get("nota", 0),
+            "leader_2022": top1_22["name"],
+            "leader_votes_2022": top1_22["votes"],
+            "runner_up_2022": top2_22["name"],
+            "runner_up_votes_2022": top2_22["votes"],
+            "leader_2024": top1_24["name"],
+            "leader_votes_2024": top1_24["votes"],
+            "runner_up_2024": top2_24["name"],
+            "runner_up_votes_2024": top2_24["votes"],
+            "margin_votes": margin_22,
+            "margin_pct": margin_22_pct,
+            "margin_votes_2024": margin_24,
+            "margin_pct_2024": margin_24_pct,
+            "quadrant": quadrant,
+            "quadrant_2024": quadrant_2024,
+            "trajectory_tag": traj_tag,
+            "is_swing_booth": is_swing,
+            "is_low_turnout": is_low_t,
+            "candidates_2022": paired22,
+            "candidates_2024": paired24,
+        })
+
+    # Attach booth quadrant to large households (4+ electors) & prioritize Swing / GOTV booths
+    q_by_part = {b["part_no"]: b["quadrant"] for b in booths_list}
+    priority_households = []
+    for hh in large_households:
+        q = q_by_part.get(hh["part_no"], "D_TRAILING")
+        priority_households.append({
+            "voter_id": hh["sample_voter_id"],
+            "part_no": hh["part_no"],
+            "house_no": hh["house_no"],
+            "elector_count": hh["mem_cnt"],
+            "youth_count": hh["youth_count"] or 0,
+            "deleted_count": hh["deleted_count"] or 0,
+            "polling_station_name": hh["polling_station_name"] or f"Part #{hh['part_no']}",
+            "head_hint": hh["elder_name"] or hh["fallback_name"],
+            "quadrant": q,
+            "priority_score": (3 if q == "B_SWING" else (2 if q == "C_GOTV" else 1)) * hh["mem_cnt"] + (hh["youth_count"] or 0),
+        })
+    priority_households.sort(key=lambda x: (-x["priority_score"], -x["elector_count"]))
+
+    ac_full = dict(ac_hist)
+    ac_full["y2024"] = {
+        "pc_name": ac_e24.get("pc_name", ""),
+        "leader": ac_e24.get("leader", "N/A"),
+        "party": ac_e24.get("leader_party", "IND"),
+        "turnout_pct": ac_e24.get("turnout_pct", 0.0),
+        "total_polled": ac_e24.get("total_polled", 0),
+        "margin": ac_e24.get("margin", 0),
+        "candidate_totals": ac_e24.get("candidate_totals", []),
+    }
+
+    affidavits_2022 = CANDIDATE_AFFIDAVITS_DATA.get("by_ac_2022", {}).get(str(ac_no), [])
+
+    return {
+        "success": True,
+        "ac": ac_full,
+        "quadrant_counts": quadrant_counts,
+        "booths": booths_list,
+        "top_swing_households": priority_households[:30],
+        "households_4plus_count": len(priority_households),
+        "affidavits_2022": affidavits_2022,
+    }
+
+
+def _norm_cand_key(name: str) -> str:
+    return re.sub(r"[^A-Z0-9\s]", "", (name or "").upper()).strip()
+
+
+def _resolve_ac_2022_party_map(ac_no: int) -> dict[str, str]:
+    """Map normalized candidate name -> party for 2022 AC using affidavits + election_history."""
+    key = str(ac_no)
+    party_map: dict[str, str] = {}
+    ac_hist = ELECTION_HISTORY_DATA.get(key, {})
+    y22 = ac_hist.get("y2022") or {}
+    if y22.get("winner") and y22.get("party"):
+        party_map[_norm_cand_key(y22["winner"])] = y22["party"].upper()
+    for aff in CANDIDATE_AFFIDAVITS_DATA.get("by_ac_2022", {}).get(key, []):
+        nk = _norm_cand_key(aff.get("name") or "")
+        if nk and aff.get("party"):
+            party_map[nk] = aff["party"].upper()
+    return party_map
+
+
+def _find_candidate_for_party(ac_no: int, target_party_up: str) -> Optional[str]:
+    """Return the 2022 candidate name (matching election_2022_form20.json) for target_party_up in ac_no."""
+    key = str(ac_no)
+    ac_hist = ELECTION_HISTORY_DATA.get(key, {})
+    y22 = ac_hist.get("y2022") or {}
+    if (y22.get("party") or "").upper() == target_party_up:
+        return y22.get("winner")
+
+    e22_cands = ELECTION_2022_DATA.get(key, {}).get("candidates", [])
+    affs = CANDIDATE_AFFIDAVITS_DATA.get("by_ac_2022", {}).get(key, [])
+    target_aff_names = [_norm_cand_key(a.get("name") or "") for a in affs if (a.get("party") or "").upper() == target_party_up]
+    if not target_aff_names:
+        return None
+
+    for ec in e22_cands:
+        ek = _norm_cand_key(ec)
+        if ek in target_aff_names:
+            return ec
+    # Token overlap fallback
+    for tk in target_aff_names:
+        ttoks = set(tk.split())
+        for ec in e22_cands:
+            if len(ttoks & set(_norm_cand_key(ec).split())) >= 2:
+                return ec
+    return None
+
+
+def _get_runner_up_party_2022(ac_no: int) -> str:
+    key = str(ac_no)
+    totals = ELECTION_2022_DATA.get(key, {}).get("candidate_totals", [])
+    if len(totals) < 2:
+        return "OPPOSITION"
+    runner_name = totals[1].get("name", "")
+    rnk = _norm_cand_key(runner_name)
+    party_map = _resolve_ac_2022_party_map(ac_no)
+    if rnk in party_map:
+        return party_map[rnk]
+    rtoks = set(rnk.split())
+    for k, p in party_map.items():
+        if len(rtoks & set(k.split())) >= 2:
+            return p
+    return "OPPOSITION"
+
+
+@app.get("/api/elections/simulate")
+def simulate_elections(
+    swing_pct: float = Query(0.0, ge=-20.0, le=20.0),
+    turnout_shift_pct: float = Query(0.0, ge=-20.0, le=20.0),
+    target_party: str = Query("BJP"),
+    region: str = Query("ALL"),
+    ac_no: Optional[int] = Query(None, ge=1, le=60),
+):
+    """
+    Scenario & Coalition Simulator:
+    Projects AC seat flips (across all 60 ACs or filtered region) and booth-level flips (if ac_no is given)
+    under uniform vote-share swing toward `target_party` and turnout shift.
+    """
+    if not ELECTION_HISTORY_DATA:
+        raise HTTPException(status_code=404, detail="Election history dataset not loaded")
+
+    target_party_up = target_party.strip().upper()
+    baseline_seats = {}
+    projected_seats = {}
+    flipped_acs = []
+
+    for i in range(1, 61):
+        key = str(i)
+        ac_item = ELECTION_HISTORY_DATA.get(key)
+        if not ac_item:
+            continue
+        reg = "Jiribam" if i == 40 else ("Imphal Valley" if i <= 39 else "Hill Districts")
+        if region != "ALL" and reg != region:
+            continue
+
+        y22 = ac_item["y2022"]
+        win_party = (y22.get("party") or "IND").upper()
+        baseline_seats[win_party] = baseline_seats.get(win_party, 0) + 1
+
+        polled = y22.get("total_polled", 0) or 1
+        base_margin_pct = y22.get("margin_pct", 0.0) or 0.0
+        turnout_factor = max(0.5, 1.0 + (turnout_shift_pct / 100.0))
+        sim_polled = round(polled * turnout_factor)
+
+        # Effective swing: if target_party is incumbent, +swing_pct widens margin; if challenger, +swing_pct eats into 2*swing_pct of margin (1-to-1 transfer)
+        if win_party == target_party_up:
+            new_margin_pct = base_margin_pct + (2.0 * swing_pct)
+            if new_margin_pct < 0:
+                proj_party = _get_runner_up_party_2022(i)
+                flipped_acs.append({
+                    "ac_no": i,
+                    "ac_name": ac_item["ac_name"],
+                    "district": ac_item["district"],
+                    "from_party": win_party,
+                    "to_party": proj_party,
+                    "baseline_margin": y22.get("margin", 0),
+                    "projected_margin": round(abs(new_margin_pct) / 100.0 * sim_polled),
+                })
+            else:
+                proj_party = win_party
+        else:
+            # Challenger swing toward target_party (only if target_party contested in this AC, or uniform party swing)
+            target_cand = _find_candidate_for_party(i, target_party_up)
+            if target_cand is not None:
+                # Compute exact margin between AC winner and target_party's candidate
+                totals = ELECTION_2022_DATA.get(key, {}).get("candidate_totals", [])
+                win_votes = totals[0]["votes"] if totals else 0
+                t_votes = next((c["votes"] for c in totals if c["name"] == target_cand), 0)
+                exact_gap_pct = ((win_votes - t_votes) / polled) * 100.0 if totals else base_margin_pct
+            else:
+                exact_gap_pct = base_margin_pct
+
+            new_margin_pct = exact_gap_pct - (2.0 * swing_pct)
+            if new_margin_pct < 0 and target_cand is not None:
+                proj_party = target_party_up
+                flipped_acs.append({
+                    "ac_no": i,
+                    "ac_name": ac_item["ac_name"],
+                    "district": ac_item["district"],
+                    "from_party": win_party,
+                    "to_party": proj_party,
+                    "baseline_margin": y22.get("margin", 0),
+                    "projected_margin": round(abs(new_margin_pct) / 100.0 * sim_polled),
+                })
+            else:
+                proj_party = win_party
+
+        projected_seats[proj_party] = projected_seats.get(proj_party, 0) + 1
+
+    booth_sim = None
+    if ac_no is not None:
+        detail = get_election_ac_detail(ac_no)
+        target_cand = _find_candidate_for_party(ac_no, target_party_up)
+        contested = target_cand is not None
+        total_22_booths = 0
+        base_won = 0
+        proj_won = 0
+        flipped_booths = 0
+        proj_total_margin = 0
+        t_mult = max(0.5, 1.0 + (turnout_shift_pct / 100.0))
+
+        for b in detail["booths"]:
+            p22 = b["total_polled_2022"] or 0
+            if not p22:
+                continue
+            total_22_booths += 1
+            if not contested:
+                continue
+            cands = b.get("candidates_2022") or []
+            t_votes = next((c["votes"] for c in cands if c["name"] == target_cand), 0)
+            best_other = max((c["votes"] for c in cands if c["name"] != target_cand), default=0)
+            lead_is_target = (b["leader_2022"] == target_cand)
+            if lead_is_target:
+                base_won += 1
+            signed_m_pct = ((t_votes - best_other) / p22) * 100.0
+            new_m_pct = signed_m_pct + (2.0 * swing_pct)
+            proj_votes_m = round((new_m_pct / 100.0) * p22 * t_mult)
+            proj_total_margin += proj_votes_m
+            if new_m_pct >= 0:
+                proj_won += 1
+                if not lead_is_target:
+                    flipped_booths += 1
+            else:
+                if lead_is_target:
+                    flipped_booths += 1
+
+        booth_sim = {
+            "ac_no": ac_no,
+            "ac_name": detail["ac"]["ac_name"],
+            "target_party": target_party_up,
+            "target_party_contested": contested,
+            "target_candidate": target_cand,
+            "total_booths": total_22_booths,
+            "baseline_booths_won": base_won,
+            "projected_booths_won": proj_won,
+            "flipped_booths": flipped_booths,
+            "projected_ac_margin": proj_total_margin,
+        }
+
+    return {
+        "success": True,
+        "params": {
+            "swing_pct": swing_pct,
+            "turnout_shift_pct": turnout_shift_pct,
+            "target_party": target_party_up,
+            "region": region,
+        },
+        "baseline_seats": baseline_seats,
+        "projected_seats": projected_seats,
+        "flipped_acs_count": len(flipped_acs),
+        "flipped_acs": flipped_acs,
+        "booth_simulation": booth_sim,
+    }
+
+
+def _csv_safe(val):
+    if isinstance(val, str) and val and val[0] in ("=", "+", "-", "@", "\t", "\r"):
+        return "'" + val
+    return val
+
+
+@app.get("/api/elections/ac/{ac_no}/war_room_csv")
+def export_ac_war_room_csv(ac_no: int):
+    import csv
+    import io
+    data = get_election_ac_detail(ac_no)
+    out = io.StringIO()
+    w = csv.writer(out)
+    w.writerow([
+        "Part No", "Polling Station", "Quadrant", "Target Action", "Target Votes",
+        "Current Electors", "Youth 18-29", "Female %", "Top Clan/Surname",
+        "2022 Polled", "2022 Turnout %", "2022 Leader", "2022 Margin %",
+        "2024 Polled", "2024 Turnout %", "2024 LS Leader", "Swing Index"
+    ])
+    for b in data["booths"]:
+        dem = b.get("demographics", {})
+        tot_mf = (dem.get("male_count", 0) + dem.get("female_count", 0)) or 1
+        fem_pct = round((dem.get("female_count", 0) / tot_mf) * 100, 1)
+        w.writerow([_csv_safe(x) for x in [
+            b["part_no"], b["polling_station_name"], b["quadrant"], b["target_action"], b["target_votes"],
+            b["curr_voters"], dem.get("youth_18_29", 0), fem_pct, dem.get("top_surname", ""),
+            b["total_polled_2022"], b["est_turnout_2022"], f"{b['leader_2022']} ({b['leader_votes_2022']})",
+            b["margin_pct"], b["total_polled_2024"], b["est_turnout_2024"], f"{b['leader_2024']} ({b['leader_votes_2024']})",
+            b.get("swing_index", "")
+        ]])
+    return Response(
+        content=out.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="war_room_ac_{ac_no}.csv"'},
+    )
+
+
+@app.get("/api/elections/ac/{ac_no}/canvassing_csv")
+def export_ac_canvassing_csv(ac_no: int):
+    """Field Ops Export: Priority Booth + 4+ Elector Household Canvassing Sheet."""
+    import csv
+    import io
+    data = get_election_ac_detail(ac_no)
+    booth_map = {b["part_no"]: b for b in data["booths"]}
+    out = io.StringIO()
+    w = csv.writer(out)
+    w.writerow([
+        "Priority Score", "Quadrant", "Part No", "Polling Station",
+        "House No", "Electors (4+)", "Youth (18-29)", "Deleted Flags",
+        "Household Head Hint", "Booth Target Action", "Booth Target Votes"
+    ])
+    for hh in data["top_swing_households"]:
+        b = booth_map.get(hh["part_no"], {})
+        w.writerow([_csv_safe(x) for x in [
+            hh["priority_score"], hh["quadrant"], hh["part_no"], hh["polling_station_name"],
+            hh["house_no"], hh["elector_count"], hh["youth_count"], hh["deleted_count"],
+            hh["head_hint"], b.get("target_action", ""), b.get("target_votes", "")
+        ]])
+    return Response(
+        content=out.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="canvassing_ac_{ac_no}.csv"'},
+    )
+
+
 # Mount static folder
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 @app.get("/")
 @app.get("/portal")
+@app.get("/devadmin")
 def serve_index():
     index_file = os.path.join(STATIC_DIR, "index.html")
     if os.path.exists(index_file):

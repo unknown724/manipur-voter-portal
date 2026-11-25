@@ -384,6 +384,10 @@
               <i data-lucide="landmark" class="w-3.5 h-3.5 sm:w-4 sm:h-4"></i>
               <span>Constituencies (60)</span>
             </button>
+            <button onclick="switchTab('election')" id="tabBtn-election" class="nav-tab px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition flex items-center gap-1 sm:gap-1.5 text-amber-200 hover:bg-white/10 shrink-0">
+              <i data-lucide="bar-chart-3" class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-300"></i>
+              <span>Election Intel</span>
+            </button>
           </nav>
 
           <!-- Light / Dark Mode Toggle Button (21st.dev Style) -->
@@ -866,7 +870,389 @@
 
     </div>
 
+    <!-- VIEW 5: ELECTION RESULTS & TRENDS (2012 -> 2017 -> 2022 -> 2024 LS) -->
+    <div id="view-election" class="hidden space-y-4">
+      <!-- Compact Header, Year/Area Controls & Sub-Tab Branching -->
+      <div class="bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-slate-200 dark:border-zinc-800 p-4 sm:p-5 space-y-4">
+        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+          <div>
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="p-2 rounded-xl bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                <i data-lucide="bar-chart-3" class="w-5 h-5"></i>
+              </span>
+              <h2 class="text-lg sm:text-xl font-bold text-slate-900 dark:text-white">Election Results &amp; Trends (2012–2024)</h2>
+            </div>
+            <p class="text-xs text-slate-500 dark:text-zinc-400 mt-1">
+              Official ECI results across 60 constituencies &amp; 2,902 polling booths.
+            </p>
+          </div>
+          <!-- Year / Compare / Overall Selector + Area Filter -->
+          <div class="flex flex-wrap items-center gap-2">
+            <div class="inline-flex flex-wrap rounded-xl bg-slate-100 dark:bg-zinc-800 p-1 text-xs font-bold" id="ei-year-tabs">
+              <button onclick="setElectionYear('2012')" data-ei-year="2012" class="ei-yr-btn px-2.5 py-1 rounded-lg text-slate-600 dark:text-zinc-300 cursor-pointer">2012</button>
+              <button onclick="setElectionYear('2017')" data-ei-year="2017" class="ei-yr-btn px-2.5 py-1 rounded-lg text-slate-600 dark:text-zinc-300 cursor-pointer">2017</button>
+              <button onclick="setElectionYear('2022')" data-ei-year="2022" class="ei-yr-btn px-2.5 py-1 rounded-lg text-slate-600 dark:text-zinc-300 cursor-pointer">2022</button>
+              <button onclick="setElectionYear('2024')" data-ei-year="2024" class="ei-yr-btn px-2.5 py-1 rounded-lg bg-amber-600 text-white shadow-sm cursor-pointer">2024 LS</button>
+              <button onclick="setElectionYear('COMPARE')" data-ei-year="COMPARE" class="ei-yr-btn px-2.5 py-1 rounded-lg text-slate-600 dark:text-zinc-300 cursor-pointer">Compare</button>
+              <button onclick="setElectionYear('OVERALL')" data-ei-year="OVERALL" class="ei-yr-btn px-2.5 py-1 rounded-lg text-slate-600 dark:text-zinc-300 cursor-pointer">Overall</button>
+            </div>
+            <div id="ei-compare-years-bar" class="hidden inline-flex items-center gap-1.5 text-xs bg-slate-100 dark:bg-zinc-800 px-2 py-1 rounded-xl">
+              <select id="ei-cmp-yr-a" onchange="renderElectionIntelUI()" class="bg-white dark:bg-zinc-900 rounded-lg px-2 py-0.5 border border-slate-300 dark:border-zinc-700 font-semibold">
+                <option value="2012">2012</option>
+                <option value="2017">2017</option>
+                <option value="2022" selected>2022</option>
+                <option value="2024">2024 LS</option>
+              </select>
+              <span class="text-slate-400 font-bold">vs</span>
+              <select id="ei-cmp-yr-b" onchange="renderElectionIntelUI()" class="bg-white dark:bg-zinc-900 rounded-lg px-2 py-0.5 border border-slate-300 dark:border-zinc-700 font-semibold">
+                <option value="2012">2012</option>
+                <option value="2017">2017</option>
+                <option value="2022">2022</option>
+                <option value="2024" selected>2024 LS</option>
+              </select>
+            </div>
+            <select id="ei-region-select" onchange="setElectionRegion(this.value)" class="px-2.5 py-1.5 text-xs font-semibold rounded-xl bg-slate-50 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 text-slate-800 dark:text-zinc-100">
+              <option value="ALL">All Areas (60)</option>
+              <option value="Imphal Valley">Imphal Valley (40)</option>
+              <option value="Hill Districts">Hill Districts (19)</option>
+              <option value="Jiribam">Jiribam (1)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- 4 Clean Sub-Tabs for Branching Information -->
+        <div class="flex items-center gap-2 border-t border-slate-100 dark:border-zinc-800 pt-3 overflow-x-auto">
+          <button onclick="setElectionSubTab('overview')" data-ei-subtab="overview" class="ei-subtab-btn px-3.5 py-1.5 rounded-xl text-xs font-bold bg-slate-900 dark:bg-white text-white dark:text-slate-900 cursor-pointer whitespace-nowrap">Overview</button>
+          <button onclick="setElectionSubTab('constituencies')" data-ei-subtab="constituencies" class="ei-subtab-btn px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 cursor-pointer whitespace-nowrap">Constituencies (60)</button>
+          <button onclick="setElectionSubTab('regions')" data-ei-subtab="regions" class="ei-subtab-btn px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 cursor-pointer whitespace-nowrap">Compare &amp; Regions</button>
+          <button onclick="setElectionSubTab('simulator')" data-ei-subtab="simulator" class="ei-subtab-btn px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 cursor-pointer whitespace-nowrap">Scenario Simulator</button>
+        </div>
+      </div>
+
+      <!-- SUB-TAB 1: OVERVIEW (Default — Clean & Scannable) -->
+      <div id="ei-panel-overview" class="space-y-4">
+        <div class="bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-slate-200 dark:border-zinc-800 p-4 sm:p-5 space-y-4">
+          <!-- 4 Clean KPI Cards -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+            <div class="p-3 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800">
+              <span id="ei-kpi-turnout-label" class="text-[11px] text-slate-500 dark:text-zinc-400 uppercase font-semibold">Turnout</span>
+              <p id="ei-kpi-turnout" class="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">--%</p>
+              <span id="ei-kpi-polled" class="text-[10px] text-slate-400">-- votes</span>
+            </div>
+            <div class="p-3 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800">
+              <span class="text-[11px] text-slate-500 dark:text-zinc-400 uppercase font-semibold">Close Seats (&lt;5%)</span>
+              <p id="ei-kpi-battleground" class="text-xl font-bold text-rose-600 dark:text-rose-400 mt-0.5">--</p>
+              <span class="text-[10px] text-slate-400">Narrow margin</span>
+            </div>
+            <div class="p-3 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800">
+              <span class="text-[11px] text-slate-500 dark:text-zinc-400 uppercase font-semibold">Flipped Seats</span>
+              <p id="ei-kpi-flipped" class="text-xl font-bold text-amber-600 dark:text-amber-400 mt-0.5">--</p>
+              <span class="text-[10px] text-slate-400">Changed party ('17→'22)</span>
+            </div>
+            <div class="p-3 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800">
+              <span class="text-[11px] text-slate-500 dark:text-zinc-400 uppercase font-semibold">Youth Impact</span>
+              <p id="ei-kpi-youth" class="text-xl font-bold text-cyan-600 dark:text-cyan-400 mt-0.5">--</p>
+              <span class="text-[10px] text-slate-400">18–29 voters &gt; margin</span>
+            </div>
+          </div>
+
+          <!-- Selected-Year Government Formation Banner -->
+          <div id="ei-gov-formation" class="p-3 rounded-xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs"></div>
+
+          <!-- Selected-Year Party Standings -->
+          <div class="space-y-2.5">
+            <div class="flex items-center justify-between flex-wrap gap-2">
+              <h3 id="ei-standings-title" class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400">Party Standings</h3>
+              <span class="text-[10px] text-slate-400">Change vs previous cycle</span>
+            </div>
+            <div id="ei-party-trajectory" class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5"></div>
+          </div>
+
+          <!-- Accurate Per-Year / 4-Year SVG Chart -->
+          <div class="rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 p-3 space-y-2">
+            <div class="flex items-center justify-between flex-wrap gap-2">
+              <span id="ei-chart-title" class="text-[11px] font-bold text-slate-700 dark:text-zinc-200">Accurate Seat / Lead Graph</span>
+              <div class="inline-flex rounded-lg bg-slate-200/70 dark:bg-zinc-800 p-0.5 text-[10px] font-bold">
+                <button onclick="setElectionChartMode('year')" data-ei-cmode="year" class="ei-cmode-btn px-2 py-0.5 rounded-md bg-white dark:bg-zinc-700 text-slate-900 dark:text-white shadow-xs cursor-pointer">Selected Year</button>
+                <button onclick="setElectionChartMode('trend')" data-ei-cmode="trend" class="ei-cmode-btn px-2 py-0.5 rounded-md text-slate-600 dark:text-zinc-300 cursor-pointer">4-Year Trend</button>
+              </div>
+            </div>
+            <div id="ei-party-svg-chart" class="w-full overflow-x-auto"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUB-TAB 2: CONSTITUENCIES (60) -->
+      <div id="ei-panel-constituencies" class="hidden">
+        <div class="bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-slate-200 dark:border-zinc-800 p-4 sm:p-5 space-y-3">
+          <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div class="flex flex-wrap items-center gap-1.5 text-xs" id="ei-filter-pills">
+              <button onclick="setElectionFilter('ALL')" data-ei-filter="ALL" class="ei-pill px-2.5 py-1 rounded-full font-bold bg-emerald-600 text-white cursor-pointer">All</button>
+              <button onclick="setElectionFilter('BATTLEGROUND')" data-ei-filter="BATTLEGROUND" class="ei-pill px-2.5 py-1 rounded-full font-semibold bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 cursor-pointer">Close (&lt;5%)</button>
+              <button onclick="setElectionFilter('FLIPPED')" data-ei-filter="FLIPPED" class="ei-pill px-2.5 py-1 rounded-full font-semibold bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 cursor-pointer">Flipped</button>
+              <button onclick="setElectionFilter('YOUTH')" data-ei-filter="YOUTH" class="ei-pill px-2.5 py-1 rounded-full font-semibold bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 cursor-pointer">Youth Impact</button>
+              <button onclick="setElectionFilter('BJP')" data-ei-filter="BJP" class="ei-pill px-2.5 py-1 rounded-full font-semibold bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 cursor-pointer">BJP</button>
+              <button onclick="setElectionFilter('INC')" data-ei-filter="INC" class="ei-pill px-2.5 py-1 rounded-full font-semibold bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 cursor-pointer">INC</button>
+              <button onclick="setElectionFilter('NPP')" data-ei-filter="NPP" class="ei-pill px-2.5 py-1 rounded-full font-semibold bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 cursor-pointer">NPP</button>
+              <button onclick="setElectionFilter('NPF')" data-ei-filter="NPF" class="ei-pill px-2.5 py-1 rounded-full font-semibold bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 cursor-pointer">NPF</button>
+              <button onclick="setElectionFilter('JD(U)')" data-ei-filter="JD(U)" class="ei-pill px-2.5 py-1 rounded-full font-semibold bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 cursor-pointer">JD(U)</button>
+            </div>
+            <input type="text" id="ei-search-input" oninput="renderElectionTable()" placeholder="Search constituency, MLA, district..." class="px-3 py-1.5 text-xs rounded-xl bg-slate-50 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 text-slate-800 dark:text-zinc-100 w-full md:w-64" />
+          </div>
+
+          <div class="overflow-x-auto border border-slate-200 dark:border-zinc-800 rounded-xl">
+            <table class="w-full text-left text-xs">
+              <thead id="ei-ac-thead" class="bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300">
+                <tr>
+                  <th class="p-2.5">Constituency</th>
+                  <th class="p-2.5">Winner / Leader</th>
+                  <th class="p-2.5 text-right">Turnout</th>
+                  <th class="p-2.5 text-right">Margin</th>
+                  <th class="p-2.5">Status</th>
+                  <th class="p-2.5 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody id="ei-ac-tbody" class="divide-y divide-slate-100 dark:divide-zinc-800"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUB-TAB 3: COMPARE & REGIONS -->
+      <div id="ei-panel-regions" class="hidden space-y-4">
+        <!-- 2-AC Side-by-Side Comparator -->
+        <div class="bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-slate-200 dark:border-zinc-800 p-4 sm:p-5 space-y-3">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+              <i data-lucide="git-compare" class="w-4 h-4 text-emerald-600 dark:text-emerald-400"></i>
+              <span>Compare Two Constituencies</span>
+            </h3>
+            <div class="flex flex-wrap items-center gap-2 text-xs">
+              <select id="ei-compare-a" onchange="renderSideBySideComparison()" class="px-2.5 py-1.5 rounded-xl bg-slate-50 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 text-slate-800 dark:text-zinc-100 font-medium"></select>
+              <span class="font-bold text-slate-400">vs</span>
+              <select id="ei-compare-b" onchange="renderSideBySideComparison()" class="px-2.5 py-1.5 rounded-xl bg-slate-50 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 text-slate-800 dark:text-zinc-100 font-medium"></select>
+            </div>
+          </div>
+          <div id="ei-compare-grid" class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs"></div>
+        </div>
+
+        <!-- Regional & District Breakdown -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div class="bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-slate-200 dark:border-zinc-800 p-4 sm:p-5 space-y-3">
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+              <i data-lucide="map" class="w-4 h-4 text-amber-600 dark:text-amber-400"></i>
+              <span>Regional Summary</span>
+            </h3>
+            <div id="ei-area-breakdown" class="space-y-2.5 text-xs"></div>
+          </div>
+
+          <div class="bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-slate-200 dark:border-zinc-800 p-4 sm:p-5 space-y-3">
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+              <i data-lucide="trending-up" class="w-4 h-4 text-emerald-600 dark:text-emerald-400"></i>
+              <span>District Turnout &amp; Shift ('22 → '24)</span>
+            </h3>
+            <div class="overflow-x-auto max-h-64 border border-slate-200 dark:border-zinc-800 rounded-xl">
+              <table class="w-full text-left text-[11px]">
+                <thead class="bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 sticky top-0">
+                  <tr>
+                    <th class="p-2">District</th>
+                    <th class="p-2 text-right">ACs</th>
+                    <th class="p-2 text-right">'22 %</th>
+                    <th class="p-2 text-right">'24 %</th>
+                    <th class="p-2 text-right">Δ %</th>
+                    <th class="p-2 text-right">BJP Δ</th>
+                    <th class="p-2 text-right">INC Δ</th>
+                  </tr>
+                </thead>
+                <tbody id="ei-district-tbody" class="divide-y divide-slate-100 dark:divide-zinc-800"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUB-TAB 4: SCENARIO & COALITION SIMULATOR -->
+      <div id="ei-panel-simulator" class="hidden space-y-4">
+        <div class="bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-slate-200 dark:border-zinc-800 p-4 sm:p-5 space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <h3 class="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                <i data-lucide="sliders" class="w-4 h-4 text-emerald-600 dark:text-emerald-400"></i>
+                <span>What-If Swing &amp; Coalition Simulator</span>
+              </h3>
+              <p class="text-[11px] text-slate-500 dark:text-zinc-400">Model uniform vote-share swings &amp; turnout shifts across 60 ACs (31 seats = majority) and drill into booth flips.</p>
+            </div>
+            <button onclick="resetSimulator()" class="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-xs font-semibold text-slate-700 dark:text-zinc-200 cursor-pointer self-start sm:self-auto">Reset Baseline</button>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+            <div class="p-3 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 space-y-1.5">
+              <label class="font-bold text-slate-700 dark:text-zinc-300 flex justify-between">
+                <span>Target Party</span>
+              </label>
+              <select id="sim-party" onchange="runElectionSimulator()" class="w-full px-2.5 py-1.5 rounded-lg bg-white dark:bg-zinc-900 border border-slate-300 dark:border-zinc-700 font-semibold">
+                <option value="BJP">BJP</option>
+                <option value="INC">INC</option>
+                <option value="NPP">NPP</option>
+                <option value="NPF">NPF</option>
+                <option value="JD(U)">JD(U)</option>
+              </select>
+            </div>
+            <div class="p-3 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 space-y-1.5">
+              <label class="font-bold text-slate-700 dark:text-zinc-300 flex justify-between">
+                <span>Vote Swing</span>
+                <span id="sim-swing-val" class="font-mono text-emerald-600 dark:text-emerald-400">0.0%</span>
+              </label>
+              <input id="sim-swing" type="range" min="-15" max="15" step="0.5" value="0" oninput="document.getElementById('sim-swing-val').innerText=(this.value>0?'+':'')+this.value+'%'; runElectionSimulator();" class="w-full accent-emerald-600 cursor-pointer" />
+            </div>
+            <div class="p-3 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 space-y-1.5">
+              <label class="font-bold text-slate-700 dark:text-zinc-300 flex justify-between">
+                <span>Turnout Shift</span>
+                <span id="sim-turnout-val" class="font-mono text-amber-600 dark:text-amber-400">0.0%</span>
+              </label>
+              <input id="sim-turnout" type="range" min="-15" max="15" step="0.5" value="0" oninput="document.getElementById('sim-turnout-val').innerText=(this.value>0?'+':'')+this.value+'%'; runElectionSimulator();" class="w-full accent-amber-600 cursor-pointer" />
+            </div>
+            <div class="p-3 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 space-y-1.5">
+              <label class="font-bold text-slate-700 dark:text-zinc-300">AC Booth Drilldown (Optional)</label>
+              <select id="sim-ac" onchange="runElectionSimulator()" class="w-full px-2.5 py-1.5 rounded-lg bg-white dark:bg-zinc-900 border border-slate-300 dark:border-zinc-700 font-semibold">
+                <option value="">All 60 ACs (Seat View)</option>
+              </select>
+            </div>
+          </div>
+
+          <div id="sim-results" class="space-y-3 text-xs"></div>
+        </div>
+      </div>
+    </div>
+
   </main>
+
+  <!-- MODAL: CONSTITUENCY RESULTS DRILLDOWN (3 BRANCHED TABS) -->
+  <div id="electionAcModal" onclick="if(event.target === this) closeElectionAcModal()" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+    <div class="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl max-w-[calc(100vw-1rem)] sm:max-w-4xl w-full p-4 sm:p-6 space-y-4 relative border border-slate-200 dark:border-zinc-800 max-h-[92vh] overflow-y-auto transition-colors my-auto text-slate-800 dark:text-zinc-200">
+      <div class="flex items-start justify-between border-b border-slate-100 dark:border-zinc-800 pb-3 gap-3">
+        <div>
+          <span id="eam-badge" class="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700">AC #--</span>
+          <h3 id="eam-title" class="text-lg sm:text-xl font-bold text-slate-900 dark:text-white mt-1">Constituency Results</h3>
+          <p id="eam-subtitle" class="text-xs text-slate-500 dark:text-zinc-400">--</p>
+        </div>
+        <div class="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+          <button id="eam-canvass-btn" onclick="exportCanvassingCsv()" class="px-2.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold flex items-center gap-1 cursor-pointer" title="Download Field Ops Canvassing Sheet (4+ Elector Households)">
+            <i data-lucide="clipboard-list" class="w-3.5 h-3.5"></i>
+            <span class="hidden sm:inline">Canvassing CSV</span>
+          </button>
+          <button id="eam-export-btn" onclick="exportWarRoomCsv()" class="px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1 cursor-pointer">
+            <i data-lucide="download" class="w-3.5 h-3.5"></i>
+            <span>Booth CSV</span>
+          </button>
+          <button onclick="closeElectionAcModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800 transition cursor-pointer">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- 4 Modal Tabs + Real-Time All-Years & Custom Compare Switcher -->
+      <div class="flex flex-wrap items-center justify-between gap-2 pb-1">
+        <div class="flex items-center gap-2 overflow-x-auto">
+          <button onclick="setElectionModalTab('summary')" data-eam-tab="summary" class="eam-tab-btn px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-900 dark:bg-white text-white dark:text-slate-900 cursor-pointer whitespace-nowrap">Summary</button>
+          <button onclick="setElectionModalTab('booths')" data-eam-tab="booths" class="eam-tab-btn px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 cursor-pointer whitespace-nowrap">Booths</button>
+          <button onclick="setElectionModalTab('households')" data-eam-tab="households" class="eam-tab-btn px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 cursor-pointer whitespace-nowrap">Key Households</button>
+          <button onclick="setElectionModalTab('affidavits')" data-eam-tab="affidavits" class="eam-tab-btn px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 cursor-pointer whitespace-nowrap">Affidavits</button>
+        </div>
+        <div class="flex flex-wrap items-center gap-1.5">
+          <div class="inline-flex flex-wrap rounded-xl bg-slate-100 dark:bg-zinc-800 p-1 text-[11px] font-bold" id="eam-year-tabs">
+            <button onclick="setModalElectionYear('2012')" data-eam-yr="2012" class="eam-yr-btn px-2 py-1 rounded-lg text-slate-600 dark:text-zinc-300 cursor-pointer">2012</button>
+            <button onclick="setModalElectionYear('2017')" data-eam-yr="2017" class="eam-yr-btn px-2 py-1 rounded-lg text-slate-600 dark:text-zinc-300 cursor-pointer">2017</button>
+            <button onclick="setModalElectionYear('2022')" data-eam-yr="2022" class="eam-yr-btn px-2 py-1 rounded-lg bg-amber-600 text-white shadow-xs cursor-pointer">2022 MLA</button>
+            <button onclick="setModalElectionYear('2024')" data-eam-yr="2024" class="eam-yr-btn px-2 py-1 rounded-lg text-slate-600 dark:text-zinc-300 cursor-pointer">2024 LS</button>
+            <button onclick="setModalElectionYear('COMPARE')" data-eam-yr="COMPARE" class="eam-yr-btn px-2 py-1 rounded-lg text-slate-600 dark:text-zinc-300 cursor-pointer">Compare</button>
+            <button onclick="setModalElectionYear('OVERALL')" data-eam-yr="OVERALL" class="eam-yr-btn px-2 py-1 rounded-lg text-slate-600 dark:text-zinc-300 cursor-pointer">Overall</button>
+          </div>
+          <div id="eam-compare-bar" class="hidden inline-flex items-center gap-1 text-[11px] bg-slate-100 dark:bg-zinc-800 px-2 py-1 rounded-xl">
+            <select id="eam-cmp-yr-a" onchange="renderModalRealTime()" class="bg-white dark:bg-zinc-900 rounded-lg px-1.5 py-0.5 border border-slate-300 dark:border-zinc-700 font-semibold">
+              <option value="2012">2012</option>
+              <option value="2017">2017</option>
+              <option value="2022" selected>2022</option>
+              <option value="2024">2024 LS</option>
+            </select>
+            <span class="text-slate-400 font-bold">vs</span>
+            <select id="eam-cmp-yr-b" onchange="renderModalRealTime()" class="bg-white dark:bg-zinc-900 rounded-lg px-1.5 py-0.5 border border-slate-300 dark:border-zinc-700 font-semibold">
+              <option value="2012">2012</option>
+              <option value="2017">2017</option>
+              <option value="2022">2022</option>
+              <option value="2024" selected>2024 LS</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Real-Time Year / Custom Compare Banner -->
+      <div id="eam-ac-compare-banner" class="hidden p-3 rounded-xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/60 text-xs"></div>
+
+      <!-- MODAL TAB 1: SUMMARY -->
+      <div id="eam-panel-summary" class="space-y-4">
+        <div id="eam-timeline" class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs"></div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div class="p-3 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 space-y-2">
+            <h4 class="text-xs font-bold text-slate-800 dark:text-zinc-200">2022 MLA Candidates</h4>
+            <div id="eam-candidates" class="space-y-1.5"></div>
+          </div>
+          <div class="p-3 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 space-y-2">
+            <h4 class="text-xs font-bold text-slate-800 dark:text-zinc-200">2024 LS Segment Candidates</h4>
+            <div id="eam-candidates-2024" class="space-y-1.5"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MODAL TAB 2: BOOTHS -->
+      <div id="eam-panel-booths" class="hidden space-y-2">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div class="flex flex-wrap items-center gap-1.5 text-[11px]" id="eam-quad-pills">
+            <button onclick="setBoothQuadFilter('ALL')" data-quad="ALL" class="eam-q-pill px-2.5 py-1 rounded-full font-bold bg-amber-600 text-white cursor-pointer">All</button>
+            <button onclick="setBoothQuadFilter('A_FORTRESS')" data-quad="A_FORTRESS" class="eam-q-pill px-2.5 py-1 rounded-full font-semibold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 cursor-pointer">Strong Lead</button>
+            <button onclick="setBoothQuadFilter('B_SWING')" data-quad="B_SWING" class="eam-q-pill px-2.5 py-1 rounded-full font-semibold bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 cursor-pointer">Close Fight</button>
+            <button onclick="setBoothQuadFilter('C_GOTV')" data-quad="C_GOTV" class="eam-q-pill px-2.5 py-1 rounded-full font-semibold bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 cursor-pointer">Low Turnout</button>
+            <button onclick="setBoothQuadFilter('D_TRAILING')" data-quad="D_TRAILING" class="eam-q-pill px-2.5 py-1 rounded-full font-semibold bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 cursor-pointer">Trailing</button>
+          </div>
+          <span id="eam-booth-flags" class="text-[11px] text-slate-500 dark:text-zinc-400"></span>
+        </div>
+        <div class="overflow-x-auto border border-slate-200 dark:border-zinc-800 rounded-xl max-h-80">
+          <table class="w-full text-left text-[11px]">
+            <thead id="eam-booths-thead" class="bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 sticky top-0">
+              <tr>
+                <th class="p-2">Part</th>
+                <th class="p-2">Polling Station</th>
+                <th class="p-2 text-right">Polled</th>
+                <th class="p-2">Leader</th>
+                <th class="p-2">Runner-Up</th>
+                <th class="p-2 text-right">Margin</th>
+              </tr>
+            </thead>
+            <tbody id="eam-booths-tbody" class="divide-y divide-slate-100 dark:divide-zinc-800"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- MODAL TAB 3: KEY HOUSEHOLDS -->
+      <div id="eam-panel-households" class="hidden space-y-2">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <p class="text-xs text-slate-500 dark:text-zinc-400">
+            Large households (4+ electors) in Close Fight &amp; Low Turnout booths. Click <strong>Family Tree</strong> to view members.
+          </p>
+          <span id="eam-hh-count-badge" class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300"></span>
+        </div>
+        <div id="eam-swing-households" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-xs"></div>
+      </div>
+
+      <!-- MODAL TAB 4: CANDIDATE AFFIDAVITS & TURNCOAT HISTORY (ADR / MYNETA) -->
+      <div id="eam-panel-affidavits" class="hidden space-y-2">
+        <p class="text-xs text-slate-500 dark:text-zinc-400">
+          Public ADR / MyNeta 2022 affidavit records: Declared Assets, Liabilities, Criminal Cases, Education, and 2017→2022 Party Switches.
+        </p>
+        <div id="eam-affidavits-list" class="space-y-2 text-xs"></div>
+      </div>
+    </div>
+  </div>
 
   <!-- MODAL: VOTER SLIP / DETAILS -->
   <div id="voterModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
@@ -992,6 +1378,25 @@
         <div>
           <span class="text-xs text-slate-500 dark:text-zinc-400">Third Gender (TG)</span>
           <p id="acModalThirdGender" class="text-lg font-bold text-purple-600 dark:text-purple-400">0</p>
+        </div>
+      </div>
+
+      <!-- Open-Source Demographic & ECI Analytics -->
+      <div id="acModalAnalytics" class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+        <div class="p-3 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-100 dark:border-zinc-800 space-y-1.5">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-slate-700 dark:text-zinc-200">Sex Ratio &amp; Age Cohorts</span>
+            <span id="acModalSexRatio" class="font-mono font-bold text-emerald-700 dark:text-emerald-400">-- / 1000</span>
+          </div>
+          <div id="acModalAgeBars" class="grid grid-cols-4 gap-1.5 text-center pt-1"></div>
+        </div>
+        <div class="p-3 rounded-xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/70 dark:border-emerald-800/60 space-y-1.5">
+          <span class="font-bold text-emerald-900 dark:text-emerald-300 block">Official ECI Voter Services (Open Portal)</span>
+          <div class="flex flex-wrap gap-1.5 pt-0.5">
+            <a href="https://voters.eci.gov.in" target="_blank" rel="noopener noreferrer" class="px-2 py-1 rounded-lg bg-white dark:bg-zinc-900 border border-emerald-200 dark:border-emerald-800 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 hover:underline">Form 6 (New) ↗</a>
+            <a href="https://voters.eci.gov.in" target="_blank" rel="noopener noreferrer" class="px-2 py-1 rounded-lg bg-white dark:bg-zinc-900 border border-emerald-200 dark:border-emerald-800 text-[11px] font-semibold text-blue-700 dark:text-blue-300 hover:underline">Form 8 (Shift/Edit) ↗</a>
+            <a href="https://electoralsearch.eci.gov.in" target="_blank" rel="noopener noreferrer" class="px-2 py-1 rounded-lg bg-white dark:bg-zinc-900 border border-emerald-200 dark:border-emerald-800 text-[11px] font-semibold text-amber-700 dark:text-amber-300 hover:underline">Know Your BLO ↗</a>
+          </div>
         </div>
       </div>
 
@@ -1500,6 +1905,15 @@
         </div>
       </div>
 
+      <!-- 2022 Booth Election Performance (ECI Form 20) -->
+      <div id="mapBoothElectionBox" class="hidden p-2.5 rounded-xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-800/60 text-xs space-y-1.5">
+        <div class="flex items-center justify-between">
+          <span class="font-bold text-amber-900 dark:text-amber-300">🗳️ 2022 Booth Result (ECI Form 20)</span>
+          <span id="mapBoothPolled2022" class="font-mono font-bold text-emerald-700 dark:text-emerald-400">-- votes polled</span>
+        </div>
+        <div id="mapBoothCands2022" class="flex flex-wrap gap-1.5"></div>
+      </div>
+
       <!-- Modal Footer -->
       <div class="flex items-center justify-between gap-2 pt-2 border-t border-slate-200 dark:border-zinc-800 text-xs">
         <p class="text-[11px] text-slate-400 dark:text-zinc-500 truncate">Official ECI Landmark • 100% Verified Location</p>
@@ -1659,6 +2073,98 @@
     </div>
   </div>
 
+  <!-- MODAL: ADMIN AUDIT LOGS & SELF-LEARNING TELEMETRY -->
+  <div id="adminTelemetryModal" onclick="if(event.target === this) closeAdminTelemetryModal()" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+    <div class="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl max-w-[calc(100vw-1rem)] sm:max-w-4xl w-full p-4 sm:p-6 space-y-4 relative border border-slate-200 dark:border-zinc-800 max-h-[92vh] overflow-y-auto transition-colors my-auto text-slate-800 dark:text-zinc-200">
+      <div class="flex items-start justify-between border-b border-slate-100 dark:border-zinc-800 pb-3 gap-3">
+        <div>
+          <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-100 dark:bg-cyan-950/60 text-cyan-800 dark:text-cyan-300 border border-cyan-300 dark:border-cyan-700">Admin Security &amp; ML Telemetry</span>
+          <h3 class="text-lg font-bold text-slate-900 dark:text-white mt-1">IP Audit Logs &amp; Self-Learning Insights</h3>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="admLogoutBtn" onclick="logoutAdmin()" class="hidden px-2.5 py-1 rounded-lg bg-rose-100 dark:bg-rose-950/60 hover:bg-rose-200 text-rose-800 dark:text-rose-300 text-xs font-bold cursor-pointer">Logout</button>
+          <button onclick="closeAdminTelemetryModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800 transition cursor-pointer">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+      </div>
+
+      <div id="adminAuthGate" class="space-y-3">
+        <p class="text-xs text-slate-500 dark:text-zinc-400">Enter your admin passkey to inspect live client IPs, search logs, zero-result queries, and self-learned phonetic synonyms.</p>
+        <form onsubmit="event.preventDefault(); loadAdminTelemetry();" class="space-y-2.5">
+          <div class="flex gap-2">
+            <div class="relative flex-1">
+              <input type="password" id="adminTelemetryPasskey" placeholder="Enter admin passkey..." autocomplete="current-password" class="w-full px-3 py-2 pr-9 bg-slate-50 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-cyan-500" />
+              <button type="button" onclick="toggleAdminPasskeyVisibility()" class="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200">
+                <i id="adminPasskeyEye" data-lucide="eye" class="w-4 h-4"></i>
+              </button>
+            </div>
+            <button type="submit" class="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white font-bold text-xs rounded-xl transition cursor-pointer">Unlock Logs</button>
+          </div>
+          <label class="inline-flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-zinc-400 cursor-pointer select-none">
+            <input type="checkbox" id="adminRememberPasskey" class="rounded border-slate-300 text-cyan-600 focus:ring-cyan-500" />
+            <span>Remember me on this browser</span>
+          </label>
+        </form>
+        <p id="adminTelemetryError" class="text-xs text-rose-600 dark:text-rose-400 hidden"></p>
+      </div>
+
+      <div id="adminTelemetryContent" class="hidden space-y-4">
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+          <div class="p-3 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800">
+            <span class="text-[10px] text-slate-500 uppercase">Total Requests</span>
+            <p id="admTotalReq" class="text-lg font-bold text-slate-900 dark:text-white">0</p>
+          </div>
+          <div class="p-3 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800">
+            <span class="text-[10px] text-slate-500 uppercase">Unique IPs</span>
+            <p id="admUniqueIps" class="text-lg font-bold text-cyan-600 dark:text-cyan-400">0</p>
+          </div>
+          <div class="p-3 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800">
+            <span class="text-[10px] text-slate-500 uppercase">Learned Synonyms</span>
+            <p id="admLearnedCount" class="text-lg font-bold text-emerald-600 dark:text-emerald-400">0</p>
+          </div>
+          <div class="p-3 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800">
+            <span class="text-[10px] text-slate-500 uppercase">Kinship Feedback</span>
+            <p id="admKinshipCount" class="text-lg font-bold text-amber-600 dark:text-amber-400">0</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+          <div class="p-3 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800">
+            <h4 class="font-bold mb-2 text-slate-800 dark:text-zinc-200">Top Searched Terms</h4>
+            <div id="admTopQueries" class="space-y-1 max-h-36 overflow-y-auto"></div>
+          </div>
+          <div class="p-3 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800">
+            <h4 class="font-bold mb-2 text-slate-800 dark:text-zinc-200">Self-Learned Synonyms (Auto-ML)</h4>
+            <div id="admLearnedList" class="space-y-1 max-h-36 overflow-y-auto"></div>
+          </div>
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <h4 class="text-xs font-bold text-slate-800 dark:text-zinc-200">Recent Client IP &amp; Search Audit Logs</h4>
+            <button onclick="exportAdminTelemetryCsv()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold cursor-pointer">Export CSV</button>
+          </div>
+          <div class="overflow-x-auto border border-slate-200 dark:border-zinc-800 rounded-xl max-h-64">
+            <table class="w-full text-left text-[11px]">
+              <thead class="bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 sticky top-0">
+                <tr>
+                  <th class="p-2">Time (UTC)</th>
+                  <th class="p-2">Client IP</th>
+                  <th class="p-2">Endpoint</th>
+                  <th class="p-2">Query</th>
+                  <th class="p-2">Results</th>
+                  <th class="p-2">ms</th>
+                </tr>
+              </thead>
+              <tbody id="admLogsTbody" class="divide-y divide-slate-100 dark:divide-zinc-800"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Institutional & Professional Footer -->
   <footer class="bg-white dark:bg-zinc-950 border-t border-slate-200 dark:border-zinc-800 py-8 mb-16 sm:mb-0 transition-colors">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
@@ -1742,6 +2248,10 @@
       <div class="p-1.5 rounded-xl"><i data-lucide="landmark" class="w-5 h-5"></i></div>
       <span>ACs (60)</span>
     </button>
+    <button onclick="switchTab('election')" id="mobTab-election" class="flex flex-col items-center gap-1 text-slate-500 dark:text-zinc-400 font-medium text-xs transition cursor-pointer">
+      <div class="p-1.5 rounded-xl"><i data-lucide="bar-chart-3" class="w-5 h-5 text-amber-500"></i></div>
+      <span>Elections</span>
+    </button>
   </nav>
 
   <script>
@@ -1783,6 +2293,16 @@
       } catch (e) {}
     }
 
+    function removeRecentSearch(idx, event) {
+      if (event) event.stopPropagation();
+      try {
+        let list = getRecentSearches();
+        list.splice(idx, 1);
+        localStorage.setItem('manipur_recent_searches', JSON.stringify(list));
+        renderRecentSearches();
+      } catch (e) {}
+    }
+
     function renderRecentSearches() {
       const box = document.getElementById('recentSearchesBox');
       if (!box) return;
@@ -1794,16 +2314,21 @@
       box.innerHTML = `
         <div class="flex items-center justify-between px-3 py-1.5 text-xs text-slate-400 dark:text-zinc-400 font-semibold border-b border-slate-100 dark:border-zinc-800">
           <span class="flex items-center gap-1.5"><i data-lucide="history" class="w-3.5 h-3.5 text-slate-400 dark:text-zinc-400"></i> Recent Searches</span>
-          <button onclick="clearRecentSearches()" class="text-[10px] text-rose-600 dark:text-rose-400 hover:underline">Clear History</button>
+          <button onclick="clearRecentSearches()" class="text-[10px] text-rose-600 dark:text-rose-400 hover:underline cursor-pointer">Clear All</button>
         </div>
         <div class="py-1">
-          ${list.map(term => `
-            <div onclick="selectRecentSearch('${term.replace(/'/g, "\\'")}')" class="px-3 py-2 text-xs text-slate-700 dark:text-zinc-200 hover:bg-slate-50 dark:hover:bg-zinc-800 cursor-pointer flex items-center justify-between rounded-lg transition">
-              <div class="flex items-center gap-2">
-                <i data-lucide="clock" class="w-3.5 h-3.5 text-slate-400 dark:text-zinc-400"></i>
-                <span class="font-medium">${term}</span>
+          ${list.map((term, idx) => `
+            <div onclick="selectRecentSearch('${term.replace(/'/g, "\\'")}')" class="px-3 py-2 text-xs text-slate-700 dark:text-zinc-200 hover:bg-slate-50 dark:hover:bg-zinc-800 cursor-pointer flex items-center justify-between rounded-lg transition group">
+              <div class="flex items-center gap-2 min-w-0">
+                <i data-lucide="clock" class="w-3.5 h-3.5 text-slate-400 dark:text-zinc-400 shrink-0"></i>
+                <span class="font-medium truncate">${escapeHtml(term)}</span>
               </div>
-              <i data-lucide="arrow-up-right" class="w-3 h-3 text-slate-400 dark:text-zinc-400"></i>
+              <div class="flex items-center gap-1.5 shrink-0">
+                <button type="button" onclick="removeRecentSearch(${idx}, event)" class="p-1 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded hover:bg-rose-50 dark:hover:bg-rose-950/50 transition" title="Delete this search">
+                  <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                </button>
+                <i data-lucide="arrow-up-right" class="w-3 h-3 text-slate-400 dark:text-zinc-400"></i>
+              </div>
             </div>
           `).join('')}
         </div>
@@ -1850,8 +2375,9 @@
     // Modal & Mobile Back-Button History Navigation Manager
     function pushModalHistory(modalName) {
       try {
-        if (!window.history.state || window.history.state.modal !== modalName) {
-          window.history.pushState({ modal: modalName }, '');
+        const cur = window.history.state || {};
+        if (cur.modal !== modalName) {
+          window.history.pushState({ ...cur, modal: modalName }, '');
         }
       } catch (e) {}
     }
@@ -1866,6 +2392,18 @@
     }
 
     window.addEventListener('popstate', (event) => {
+      // 0. Admin Telemetry & Election AC Modals
+      const adminModal = document.getElementById('adminTelemetryModal');
+      if (adminModal && !adminModal.classList.contains('hidden')) {
+        closeAdminTelemetryModalDirect();
+        return;
+      }
+      const eamModal = document.getElementById('electionAcModal');
+      if (eamModal && !eamModal.classList.contains('hidden')) {
+        closeElectionAcModalDirect();
+        return;
+      }
+
       // 1. Household Slip Modal
       const slipModal = document.getElementById('householdSlipModal');
       if (slipModal && !slipModal.classList.contains('hidden')) {
@@ -1919,10 +2457,13 @@
         return;
       }
 
-      // 8. Tab Navigation (Return to Search tab if on other tabs)
-      if (typeof state !== 'undefined' && state && state.currentTab && state.currentTab !== 'search') {
-        switchTab('search', true);
-        return;
+      // 8. Tab & Sub-Tab Navigation (Step back/forward through history state)
+      const targetTab = (event.state && event.state.tab) ? event.state.tab : 'search';
+      if (typeof state !== 'undefined' && state && state.currentTab !== targetTab) {
+        switchTab(targetTab, true);
+      }
+      if (targetTab === 'election' && event.state && event.state.eiSubTab && typeof setElectionSubTab === 'function') {
+        setElectionSubTab(event.state.eiSubTab, true);
       }
     });
 
@@ -2098,16 +2639,31 @@
       fetchStats();
       fetchConstituencies();
       executeSearch(1);
+
+      // Initialize base history state for step-by-step Back/Forward navigation
+      try {
+        if (!window.history.state || !window.history.state.tab) {
+          window.history.replaceState({ tab: 'search', eiSubTab: 'overview' }, '');
+        }
+      } catch (e) {}
+
+      // Auto-open Admin Telemetry when visiting /devadmin (local or live)
+      const normPath = window.location.pathname.replace(/\/+$/, '');
+      if (normPath === '/devadmin') {
+        openAdminTelemetryModal();
+      }
     });
 
     function switchTab(tab, isBackNavigation = false) {
       if (typeof state !== 'undefined') {
         state.currentTab = tab;
       }
-      if (!isBackNavigation && tab !== 'search') {
+      if (!isBackNavigation) {
         try {
-          if (!window.history.state || window.history.state.tab !== tab) {
-            window.history.pushState({ tab: tab }, '');
+          const curSub = (typeof _electionSubTab !== 'undefined') ? _electionSubTab : 'overview';
+          const cur = window.history.state || {};
+          if (cur.tab !== tab || (tab === 'election' && cur.eiSubTab !== curSub)) {
+            window.history.pushState({ tab: tab, eiSubTab: curSub }, '');
           }
         } catch (e) {}
       }
@@ -2118,6 +2674,9 @@
       document.getElementById('view-upload').classList.add('hidden');
       if (document.getElementById('view-nerist')) {
         document.getElementById('view-nerist').classList.add('hidden');
+      }
+      if (document.getElementById('view-election')) {
+        document.getElementById('view-election').classList.add('hidden');
       }
 
       // Update Desktop Tabs
@@ -2132,7 +2691,7 @@
       }
 
       // Update Mobile Bottom Tabs
-      const allTabs = ['search', 'constituencies', 'rapid', 'upload', 'nerist'];
+      const allTabs = ['search', 'constituencies', 'rapid', 'upload', 'nerist', 'election'];
       allTabs.forEach(t => {
         const mobBtn = document.getElementById(`mobTab-${t}`);
         if (mobBtn) {
@@ -2152,6 +2711,8 @@
 
       if (tab === 'constituencies') {
         renderConstituenciesList();
+      } else if (tab === 'election') {
+        loadElectionIntel();
       } else if (tab === 'rapid') {
         initRapidDownloader();
       } else if (tab === 'nerist') {
@@ -2644,6 +3205,7 @@
 
     function openVoterModal(voter) {
       state.activeSlipVoter = voter;
+      trackTelemetryClick(voter.id, voter.name, 'voter_slip');
       const nameText = voter.name || 'N/A';
       const relNameText = voter.relative_name || 'N/A';
       const relTypeLabel = `${voter.relation_type || 'Relative'}'s Name`;
@@ -3212,6 +3774,7 @@
     async function openFamilyModal(voterId, voterName, isBackNavigation = false) {
       if (!isBackNavigation) {
         pushModalHistory('family');
+        trackTelemetryClick(voterId, voterName, 'family_tree');
       }
       if (!isBackNavigation && currentHouseholdData && currentHouseholdData.target && currentHouseholdData.target.id && currentHouseholdData.target.id !== voterId) {
         familyTreeHistory.push({
@@ -4397,6 +4960,25 @@
           dirLink.href = ps.google_maps_directions_url || `https://www.google.com/maps/dir/?api=1&destination=${latVal},${lngVal}`;
         }
 
+        // Render 2022 Booth Election Result (ECI Form 20)
+        const bBox = document.getElementById('mapBoothElectionBox');
+        const bPolled = document.getElementById('mapBoothPolled2022');
+        const bCands = document.getElementById('mapBoothCands2022');
+        const be22 = data.booth_election_2022;
+        if (bBox && be22 && be22.candidates && be22.candidates.length > 0) {
+          bBox.classList.remove('hidden');
+          if (bPolled) bPolled.innerText = `${(be22.total_polled || 0).toLocaleString()} votes polled (NOTA: ${be22.nota || 0})`;
+          if (bCands) {
+            bCands.innerHTML = be22.candidates.slice(0, 4).map((c, idx) => `
+              <span class="px-2 py-0.5 rounded-lg border ${idx === 0 ? 'bg-amber-100 dark:bg-amber-900/50 border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 font-bold' : 'bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-zinc-300'} text-[11px]">
+                ${idx === 0 ? '🏆 ' : ''}${escapeHtml(c.name)}: <strong>${c.votes}</strong>
+              </span>
+            `).join('');
+          }
+        } else if (bBox) {
+          bBox.classList.add('hidden');
+        }
+
         // Render Leaflet Map centered on Designated Polling Station
         const boothCoords = [latVal, lngVal];
 
@@ -4714,6 +5296,19 @@
         document.getElementById('acModalFemale').innerText = c.female_voters.toLocaleString();
         if (document.getElementById('acModalThirdGender')) {
           document.getElementById('acModalThirdGender').innerText = (c.third_gender_voters || 0).toLocaleString();
+        }
+        const sexRatioEl = document.getElementById('acModalSexRatio');
+        if (sexRatioEl && data.summary) {
+          sexRatioEl.innerText = `${data.summary.sex_ratio || '--'} / 1,000`;
+        }
+        const ageBarsEl = document.getElementById('acModalAgeBars');
+        if (ageBarsEl && data.age_distribution) {
+          ageBarsEl.innerHTML = data.age_distribution.map(ag => `
+            <div class="p-1.5 rounded-lg bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800">
+              <span class="text-[10px] text-slate-400 block">${ag.age_group}</span>
+              <span class="font-bold text-slate-800 dark:text-zinc-100">${(ag.count || 0).toLocaleString()}</span>
+            </div>
+          `).join('');
         }
 
         const psContainer = document.getElementById('acModalPollingStations');
@@ -5357,6 +5952,1100 @@
           Next
         </button>
       `;
+    }
+
+    // Self-Learning Click & Kinship Telemetry Helpers
+    function trackTelemetryClick(voterId, voterName, actionType) {
+      try {
+        const q = (document.getElementById('searchQuery')?.value || '').trim();
+        fetch('/api/telemetry/click', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query_text: q, voter_id: voterId, voter_name: voterName, action_type: actionType })
+        }).catch(() => {});
+      } catch (e) {}
+    }
+
+    function toggleAdminPasskeyVisibility() {
+      const input = document.getElementById('adminTelemetryPasskey');
+      const eye = document.getElementById('adminPasskeyEye');
+      if (!input) return;
+      if (input.type === 'password') {
+        input.type = 'text';
+        if (eye) eye.setAttribute('data-lucide', 'eye-off');
+      } else {
+        input.type = 'password';
+        if (eye) eye.setAttribute('data-lucide', 'eye');
+      }
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function openAdminTelemetryModal() {
+      pushModalHistory('admin_telemetry');
+      const modal = document.getElementById('adminTelemetryModal');
+      if (modal) {
+        modal.classList.remove('hidden');
+        if (window.lucide) lucide.createIcons();
+      }
+      const gate = document.getElementById('adminAuthGate');
+      const content = document.getElementById('adminTelemetryContent');
+      const logoutBtn = document.getElementById('admLogoutBtn');
+      const input = document.getElementById('adminTelemetryPasskey');
+      const rememberCb = document.getElementById('adminRememberPasskey');
+
+      if (_adminPasskeyCache) {
+        if (gate) gate.classList.add('hidden');
+        if (content) content.classList.remove('hidden');
+        if (logoutBtn) logoutBtn.classList.remove('hidden');
+        loadAdminTelemetry();
+        return;
+      }
+
+      if (gate) gate.classList.remove('hidden');
+      if (content) content.classList.add('hidden');
+      if (logoutBtn) logoutBtn.classList.add('hidden');
+
+      const remembered = localStorage.getItem('devadmin_passkey') || '';
+      if (remembered && input) {
+        input.value = remembered;
+        if (rememberCb) rememberCb.checked = true;
+      } else if (input) {
+        input.value = '';
+        if (rememberCb) rememberCb.checked = false;
+        setTimeout(() => input.focus(), 80);
+      }
+    }
+
+    function logoutAdmin() {
+      _adminPasskeyCache = '';
+      const gate = document.getElementById('adminAuthGate');
+      const content = document.getElementById('adminTelemetryContent');
+      const logoutBtn = document.getElementById('admLogoutBtn');
+      const input = document.getElementById('adminTelemetryPasskey');
+      const rememberCb = document.getElementById('adminRememberPasskey');
+      if (content) content.classList.add('hidden');
+      if (gate) gate.classList.remove('hidden');
+      if (logoutBtn) logoutBtn.classList.add('hidden');
+      const remembered = localStorage.getItem('devadmin_passkey') || '';
+      if (remembered && rememberCb && rememberCb.checked) {
+        if (input) input.value = remembered;
+      } else {
+        localStorage.removeItem('devadmin_passkey');
+        if (input) input.value = '';
+      }
+    }
+
+    function closeAdminTelemetryModalDirect() {
+      const modal = document.getElementById('adminTelemetryModal');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    function closeAdminTelemetryModal() {
+      closeModalWithHistory('admin_telemetry', closeAdminTelemetryModalDirect);
+    }
+
+    let _adminPasskeyCache = '';
+    async function loadAdminTelemetry() {
+      const input = document.getElementById('adminTelemetryPasskey');
+      const errEl = document.getElementById('adminTelemetryError');
+      const rememberCb = document.getElementById('adminRememberPasskey');
+      const key = (input?.value || _adminPasskeyCache || '').trim();
+      if (!key) return;
+      if (errEl) errEl.classList.add('hidden');
+
+      try {
+        const res = await fetch('/api/admin/telemetry?limit=100', { headers: { 'x-passkey': key } });
+        if (!res.ok) {
+          if (errEl) {
+            errEl.innerText = 'Invalid admin passkey.';
+            errEl.classList.remove('hidden');
+          }
+          return;
+        }
+        _adminPasskeyCache = key;
+        if (rememberCb && rememberCb.checked) {
+          localStorage.setItem('devadmin_passkey', key);
+        } else {
+          localStorage.removeItem('devadmin_passkey');
+        }
+        const data = await res.json();
+        document.getElementById('adminAuthGate').classList.add('hidden');
+        document.getElementById('adminTelemetryContent').classList.remove('hidden');
+        const logoutBtn = document.getElementById('admLogoutBtn');
+        if (logoutBtn) logoutBtn.classList.remove('hidden');
+
+        document.getElementById('admTotalReq').innerText = (data.total_requests || 0).toLocaleString();
+        document.getElementById('admUniqueIps').innerText = (data.unique_ips || 0).toLocaleString();
+        document.getElementById('admLearnedCount').innerText = (data.learned_synonyms?.length || 0).toLocaleString();
+        document.getElementById('admKinshipCount').innerText = (data.kinship_feedback_count || 0).toLocaleString();
+
+        document.getElementById('admTopQueries').innerHTML = (data.top_queries || []).length
+          ? data.top_queries.map(q => `<div class="flex justify-between"><span>${escapeHtml(q.query_text)}</span><span class="font-mono font-bold">${q.cnt}</span></div>`).join('')
+          : '<span class="text-slate-400">No search logs yet.</span>';
+
+        document.getElementById('admLearnedList').innerHTML = (data.learned_synonyms || []).length
+          ? data.learned_synonyms.map(s => `<div class="flex justify-between"><span>${escapeHtml(s.wrong_term)} → <strong>${escapeHtml(s.canonical_term)}</strong></span><span class="font-mono text-emerald-600">x${s.confidence}</span></div>`).join('')
+          : '<span class="text-slate-400">Learning automatically from user reformulations...</span>';
+
+        document.getElementById('admLogsTbody').innerHTML = (data.recent_logs || []).map(l => `
+          <tr class="hover:bg-slate-50 dark:hover:bg-zinc-800/50">
+            <td class="p-2 font-mono text-[10px] whitespace-nowrap">${escapeHtml((l.timestamp || '').slice(0, 19).replace('T', ' '))}</td>
+            <td class="p-2 font-mono font-semibold text-cyan-700 dark:text-cyan-400">${escapeHtml(l.client_ip)}</td>
+            <td class="p-2 font-mono">${escapeHtml(l.endpoint)}</td>
+            <td class="p-2">${escapeHtml(l.query_text || '-')}</td>
+            <td class="p-2 font-mono">${l.result_count != null ? l.result_count : '-'}</td>
+            <td class="p-2 font-mono">${l.response_time_ms != null ? l.response_time_ms : '-'}</td>
+          </tr>
+        `).join('');
+      } catch (e) {
+        if (errEl) {
+          errEl.innerText = 'Error loading telemetry.';
+          errEl.classList.remove('hidden');
+        }
+      }
+    }
+
+    function exportAdminTelemetryCsv() {
+      if (!_adminPasskeyCache) return;
+      window.open(`/api/admin/telemetry/export_csv?passkey=${encodeURIComponent(_adminPasskeyCache)}`, '_blank');
+    }
+
+    // ==========================================
+    // ELECTION RESULTS & TRENDS (BRANCHED UI)
+    // ==========================================
+    let _electionOverviewData = null;
+    let _electionFilter = 'ALL';
+    let _electionYear = '2024';
+    let _electionRegion = 'ALL';
+    let _electionSubTab = 'overview';
+    let _electionChartMode = 'year';
+    let _electionModalTab = 'summary';
+    let _modalElectionYear = '2022';
+    let _boothQuadFilter = 'ALL';
+    let _expandedBoothPart = null;
+    let _currentModalAcData = null;
+
+    const GOV_FORMATION_INFO = {
+      '2012': {
+        badge: 'INC Majority Government',
+        cm: 'Chief Minister: Okram Ibobi Singh (INC)',
+        detail: 'INC won 42/60 seats (Majority mark: 31), forming a single-party majority government.',
+      },
+      '2017': {
+        badge: 'BJP-Led Coalition Government',
+        cm: 'Chief Minister: N. Biren Singh (BJP)',
+        detail: 'Hung Assembly (INC 28, BJP 21). BJP formed government with NPP (4), NPF (4), LJP (1) & IND (1).',
+      },
+      '2022': {
+        badge: 'BJP Majority Government',
+        cm: 'Chief Minister: N. Biren Singh (BJP)',
+        detail: 'BJP won 32/60 seats (Majority mark: 31), backed by NPF (5) & allies.',
+      },
+      '2024': {
+        badge: '2024 Lok Sabha: INC 2 / 2 Seats',
+        cm: 'Inner Manipur (INC) • Outer Manipur (INC)',
+        detail: 'Parliamentary election: graph shows AC-segment leads across 60 Assembly segments (Form 20).',
+      },
+    };
+
+    const PARTY_HEX = {
+      'BJP': '#f97316',
+      'INC': '#0ea5e9',
+      'NPP': '#f59e0b',
+      'NPF': '#10b981',
+      'JD(U)': '#84cc16',
+      'KPA': '#a855f7',
+      'AITC': '#14b8a6',
+      'IND': '#64748b',
+    };
+
+    function partyBadgeHtml(party) {
+      const colors = {
+        'BJP': 'bg-orange-100 dark:bg-orange-950/60 text-orange-800 dark:text-orange-300 border-orange-300 dark:border-orange-700',
+        'INC': 'bg-sky-100 dark:bg-sky-950/60 text-sky-800 dark:text-sky-300 border-sky-300 dark:border-sky-700',
+        'NPP': 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-700',
+        'NPF': 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700',
+        'JD(U)': 'bg-lime-100 dark:bg-lime-950/60 text-lime-800 dark:text-lime-300 border-lime-300 dark:border-lime-700',
+        'KPA': 'bg-purple-100 dark:bg-purple-950/60 text-purple-800 dark:text-purple-300 border-purple-300 dark:border-purple-700',
+      };
+      const cls = colors[party] || 'bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 border-slate-300 dark:border-zinc-700';
+      return `<span class="inline-block px-1.5 py-0.5 rounded border text-[10px] font-bold whitespace-nowrap ${cls}">${escapeHtml(party || 'IND')}</span>`;
+    }
+
+    function growthBadgeHtml(pct) {
+      if (pct == null) return '<span class="text-slate-400">–</span>';
+      if (pct > 0) return `<span class="text-emerald-600 dark:text-emerald-400 font-bold">▲ +${pct}%</span>`;
+      if (pct < 0) return `<span class="text-rose-600 dark:text-rose-400 font-bold">▼ ${pct}%</span>`;
+      return '<span class="text-slate-400">0%</span>';
+    }
+
+    function setElectionSubTab(tab, isBackNavigation = false) {
+      _electionSubTab = tab;
+      if (!isBackNavigation) {
+        try {
+          const cur = window.history.state || {};
+          if (cur.tab !== 'election' || cur.eiSubTab !== tab) {
+            window.history.pushState({ tab: 'election', eiSubTab: tab }, '');
+          }
+        } catch (e) {}
+      }
+      ['overview', 'constituencies', 'regions', 'simulator'].forEach(t => {
+        const panel = document.getElementById(`ei-panel-${t}`);
+        if (panel) panel.classList.toggle('hidden', t !== tab);
+      });
+      if (tab === 'simulator' && typeof runElectionSimulator === 'function') {
+        runElectionSimulator();
+      }
+      document.querySelectorAll('.ei-subtab-btn').forEach(btn => {
+        if (btn.getAttribute('data-ei-subtab') === tab) {
+          btn.className = 'ei-subtab-btn px-3.5 py-1.5 rounded-xl text-xs font-bold bg-slate-900 dark:bg-white text-white dark:text-slate-900 cursor-pointer whitespace-nowrap';
+        } else {
+          btn.className = 'ei-subtab-btn px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 cursor-pointer whitespace-nowrap';
+        }
+      });
+    }
+
+    function setElectionChartMode(mode) {
+      _electionChartMode = mode;
+      document.querySelectorAll('.ei-cmode-btn').forEach(btn => {
+        if (btn.getAttribute('data-ei-cmode') === mode) {
+          btn.className = 'ei-cmode-btn px-2 py-0.5 rounded-md bg-white dark:bg-zinc-700 text-slate-900 dark:text-white shadow-xs cursor-pointer';
+        } else {
+          btn.className = 'ei-cmode-btn px-2 py-0.5 rounded-md text-slate-600 dark:text-zinc-300 cursor-pointer';
+        }
+      });
+      renderElectionChart();
+    }
+
+    function setElectionModalTab(tab) {
+      _electionModalTab = tab;
+      ['summary', 'booths', 'households', 'affidavits'].forEach(t => {
+        const panel = document.getElementById(`eam-panel-${t}`);
+        if (panel) panel.classList.toggle('hidden', t !== tab);
+      });
+      document.querySelectorAll('.eam-tab-btn').forEach(btn => {
+        if (btn.getAttribute('data-eam-tab') === tab) {
+          btn.className = 'eam-tab-btn px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-900 dark:bg-white text-white dark:text-slate-900 cursor-pointer whitespace-nowrap';
+        } else {
+          btn.className = 'eam-tab-btn px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 cursor-pointer whitespace-nowrap';
+        }
+      });
+    }
+
+    function setElectionYear(yr) {
+      _electionYear = yr;
+      document.querySelectorAll('.ei-yr-btn').forEach(btn => {
+        if (btn.getAttribute('data-ei-year') === yr) {
+          btn.className = 'ei-yr-btn px-2.5 py-1 rounded-lg bg-amber-600 text-white shadow-sm cursor-pointer';
+        } else {
+          btn.className = 'ei-yr-btn px-2.5 py-1 rounded-lg text-slate-600 dark:text-zinc-300 cursor-pointer';
+        }
+      });
+      const cmpBar = document.getElementById('ei-compare-years-bar');
+      if (cmpBar) cmpBar.classList.toggle('hidden', yr !== 'COMPARE');
+      if (yr === 'OVERALL' || yr === 'COMPARE') {
+        _electionChartMode = 'trend';
+      } else {
+        _electionChartMode = 'year';
+      }
+      document.querySelectorAll('.ei-cmode-btn').forEach(btn => {
+        if (btn.getAttribute('data-ei-cmode') === _electionChartMode) {
+          btn.className = 'ei-cmode-btn px-2 py-0.5 rounded-md bg-white dark:bg-zinc-700 text-slate-900 dark:text-white shadow-xs cursor-pointer';
+        } else {
+          btn.className = 'ei-cmode-btn px-2 py-0.5 rounded-md text-slate-600 dark:text-zinc-300 cursor-pointer';
+        }
+      });
+      renderElectionIntelUI();
+    }
+
+    function setElectionRegion(reg) {
+      _electionRegion = reg || 'ALL';
+      renderElectionTable();
+    }
+
+    async function loadElectionIntel() {
+      if (_electionOverviewData) {
+        renderElectionIntelUI();
+        return;
+      }
+      try {
+        const res = await fetch('/api/elections/overview');
+        if (!res.ok) return;
+        _electionOverviewData = await res.json();
+        renderElectionIntelUI();
+      } catch (e) {
+        console.error('Election Intel load error:', e);
+      }
+    }
+
+    function renderElectionIntelUI() {
+      const d = _electionOverviewData;
+      if (!d) return;
+      const s = d.summary || {};
+      const t22 = s.state_turnout_2022 || 0;
+      const t24 = s.state_turnout_2024 || 0;
+      if (_electionYear === '2024') {
+        document.getElementById('ei-kpi-turnout-label').innerText = '2024 LS Turnout';
+        document.getElementById('ei-kpi-turnout').innerText = `${t24}%`;
+        document.getElementById('ei-kpi-polled').innerText = `${(s.total_polled_2024 || 0).toLocaleString()} votes`;
+      } else {
+        document.getElementById('ei-kpi-turnout-label').innerText = '2022 MLA Turnout';
+        document.getElementById('ei-kpi-turnout').innerText = `${t22}%`;
+        document.getElementById('ei-kpi-polled').innerText = `${(s.total_polled_2022 || 0).toLocaleString()} votes`;
+      }
+      document.getElementById('ei-kpi-battleground').innerText = s.battleground_count ?? 0;
+      document.getElementById('ei-kpi-flipped').innerText = s.flipped_count ?? 0;
+      document.getElementById('ei-kpi-youth').innerText = s.youth_decisive_count ?? 0;
+
+      const activeSingleYr = ['2012', '2017', '2022', '2024'].includes(_electionYear) ? _electionYear : (document.getElementById('ei-cmp-yr-b')?.value || '2024');
+      const standingsTitle = document.getElementById('ei-standings-title');
+      if (standingsTitle) {
+        standingsTitle.innerText = activeSingleYr === '2024' ? '2024 LS Assembly-Segment Leads' : `${activeSingleYr} Assembly Seat Standings`;
+      }
+
+      // Government Formation Banner
+      const govEl = document.getElementById('ei-gov-formation');
+      if (govEl) {
+        const gf = GOV_FORMATION_INFO[activeSingleYr] || GOV_FORMATION_INFO['2022'];
+        govEl.innerHTML = `
+          <div>
+            <span class="font-bold text-amber-900 dark:text-amber-200">${escapeHtml(gf.badge)}</span>
+            <span class="block text-[11px] text-amber-800/80 dark:text-amber-300/80">${escapeHtml(gf.detail)}</span>
+          </div>
+          <span class="px-2.5 py-1 rounded-lg bg-white/80 dark:bg-zinc-900 border border-amber-200 dark:border-amber-800/60 font-semibold text-amber-900 dark:text-amber-200 shrink-0">${escapeHtml(gf.cm)}</span>
+        `;
+      }
+
+      // Clean Party Standings Cards (no crammed 4-year text)
+      const trajEl = document.getElementById('ei-party-trajectory');
+      if (trajEl) {
+        trajEl.innerHTML = (d.party_trajectory || []).slice(0, 7).map(pt => {
+          const activeVal = pt[`y${activeSingleYr}`] ?? pt.y2022;
+          const growthHtml = activeSingleYr === '2024' ? growthBadgeHtml(pt.growth_22_24_pct) : (activeSingleYr === '2022' ? growthBadgeHtml(pt.growth_17_22_pct) : '<span class="text-slate-400">–</span>');
+          return `
+            <div class="p-3 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 text-center space-y-1">
+              <div>${partyBadgeHtml(pt.party)}</div>
+              <div class="text-lg font-extrabold text-slate-900 dark:text-white">${activeVal} <span class="text-[10px] font-normal text-slate-400">${activeSingleYr === '2024' ? 'leads' : 'seats'}</span></div>
+              <div class="text-[10px]">${growthHtml}</div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      renderElectionChart();
+      // Area Breakdown (Compare & Regions tab)
+      const areaEl = document.getElementById('ei-area-breakdown');
+      if (areaEl) {
+        areaEl.innerHTML = (d.area_breakdown || []).map(a => `
+          <div class="p-3 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 space-y-1.5">
+            <div class="flex items-center justify-between">
+              <strong class="text-slate-900 dark:text-white">${escapeHtml(a.region)} <span class="text-slate-400 font-normal">(${a.total_acs} ACs)</span></strong>
+              <span class="font-mono text-[11px]">${a.avg_turnout_2022}% → ${a.avg_turnout_2024}% ${growthBadgeHtml(a.turnout_delta)}</span>
+            </div>
+            <div class="flex flex-wrap gap-1.5 text-[10px]">
+              ${Object.entries(a.parties || {}).map(([pty, stats]) => `
+                <span class="px-2 py-0.5 rounded bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800">
+                  ${partyBadgeHtml(pty)} '22:${stats.y2022} → '24:${stats.y2024}
+                </span>
+              `).join('')}
+            </div>
+          </div>
+        `).join('');
+      }
+
+      // District Breakdown (Compare & Regions tab)
+      const distTbody = document.getElementById('ei-district-tbody');
+      if (distTbody) {
+        distTbody.innerHTML = (d.district_breakdown || []).map(dist => `
+          <tr class="hover:bg-slate-50 dark:hover:bg-zinc-800/60">
+            <td class="p-2 font-semibold text-slate-900 dark:text-white">${escapeHtml(dist.district)}</td>
+            <td class="p-2 text-right font-mono">${dist.total_acs}</td>
+            <td class="p-2 text-right font-mono">${dist.avg_turnout_2022}%</td>
+            <td class="p-2 text-right font-mono">${dist.avg_turnout_2024}%</td>
+            <td class="p-2 text-right font-mono">${growthBadgeHtml(dist.turnout_delta)}</td>
+            <td class="p-2 text-right font-mono font-bold ${dist.bjp_delta > 0 ? 'text-emerald-600' : (dist.bjp_delta < 0 ? 'text-rose-600' : 'text-slate-400')}">${dist.bjp_delta > 0 ? '+' : ''}${dist.bjp_delta}</td>
+            <td class="p-2 text-right font-mono font-bold ${dist.inc_delta > 0 ? 'text-emerald-600' : (dist.inc_delta < 0 ? 'text-rose-600' : 'text-slate-400')}">${dist.inc_delta > 0 ? '+' : ''}${dist.inc_delta}</td>
+          </tr>
+        `).join('');
+      }
+
+      const selA = document.getElementById('ei-compare-a');
+      const selB = document.getElementById('ei-compare-b');
+      const simAcSel = document.getElementById('sim-ac');
+      if (selA && selB && selA.options.length === 0) {
+        const opts = (d.constituencies || []).map(c => `<option value="${c.ac_no}">AC #${c.ac_no} - ${escapeHtml(c.ac_name)}</option>`).join('');
+        selA.innerHTML = opts;
+        selB.innerHTML = opts;
+        selA.value = '1';
+        selB.value = '7';
+        if (simAcSel) {
+          simAcSel.innerHTML = '<option value="">All 60 ACs (Seat View)</option>' + opts;
+        }
+      }
+      renderSideBySideComparison();
+      renderElectionTable();
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function renderSideBySideComparison() {
+      if (!_electionOverviewData) return;
+      const aNo = document.getElementById('ei-compare-a')?.value || '1';
+      const bNo = document.getElementById('ei-compare-b')?.value || '7';
+      const list = _electionOverviewData.constituencies || [];
+      const acA = list.find(x => String(x.ac_no) === String(aNo));
+      const acB = list.find(x => String(x.ac_no) === String(bNo));
+      const grid = document.getElementById('ei-compare-grid');
+      if (!grid || !acA || !acB) return;
+
+      grid.innerHTML = [acA, acB].map(ac => {
+        const y24 = ac.y2024 || {};
+        return `
+        <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 space-y-2">
+          <div class="flex items-center justify-between gap-2">
+            <strong class="text-sm text-slate-900 dark:text-white truncate">#${ac.ac_no} ${escapeHtml(ac.ac_name)}</strong>
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 dark:bg-zinc-800 shrink-0">${escapeHtml(ac.district)}</span>
+          </div>
+          <div class="grid grid-cols-4 gap-1.5 text-center bg-white dark:bg-zinc-900 p-2 rounded-lg border border-slate-100 dark:border-zinc-800">
+            <div><span class="text-[10px] text-slate-400 block">2012</span>${partyBadgeHtml(ac.y2012.party)}</div>
+            <div><span class="text-[10px] text-slate-400 block">2017</span>${partyBadgeHtml(ac.y2017.party)}</div>
+            <div><span class="text-[10px] text-slate-400 block">2022</span>${partyBadgeHtml(ac.y2022.party)}</div>
+            <div><span class="text-[10px] text-slate-400 block">2024 LS</span>${partyBadgeHtml(y24.party || 'IND')}</div>
+          </div>
+          <div class="flex flex-wrap justify-between gap-2 text-[11px] text-slate-600 dark:text-zinc-300">
+            <span>2022: <strong>${escapeHtml(ac.y2022.winner)}</strong></span>
+            <span>Turnout: <strong>${ac.y2022.turnout_pct}%</strong> → <strong>${y24.turnout_pct ?? '--'}%</strong></span>
+          </div>
+          <div class="flex flex-wrap justify-between gap-2 text-[11px] text-slate-500 dark:text-zinc-400">
+            <span>Margin: <strong>${(ac.y2022.margin || 0).toLocaleString()} (${ac.y2022.margin_pct}%)</strong></span>
+            <span>Youth (18–29): <strong>${ac.youth_voters_18_29.toLocaleString()}</strong></span>
+          </div>
+        </div>
+      `;
+      }).join('');
+    }
+
+    function setElectionFilter(f) {
+      _electionFilter = f;
+      document.querySelectorAll('.ei-pill').forEach(btn => {
+        if (btn.getAttribute('data-ei-filter') === f) {
+          btn.className = 'ei-pill px-2.5 py-1 rounded-full font-bold bg-emerald-600 text-white cursor-pointer';
+        } else {
+          btn.className = 'ei-pill px-2.5 py-1 rounded-full font-semibold bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 cursor-pointer';
+        }
+      });
+      renderElectionTable();
+    }
+
+    function getAcYearInfo(c, yr) {
+      if (yr === '2012') return { party: c.y2012?.party || 'IND', name: c.y2012?.winner || '--', turnout: null, margin: null, marginPct: null };
+      if (yr === '2017') return { party: c.y2017?.party || 'IND', name: c.y2017?.winner || '--', turnout: null, margin: null, marginPct: null };
+      if (yr === '2024') return { party: c.y2024?.party || 'IND', name: c.y2024?.leader || '--', turnout: c.y2024?.turnout_pct, margin: c.y2024?.margin, marginPct: c.y2024?.margin_pct };
+      return { party: c.y2022?.party || 'IND', name: c.y2022?.winner || '--', turnout: c.y2022?.turnout_pct, margin: c.y2022?.margin, marginPct: c.y2022?.margin_pct };
+    }
+
+    function renderElectionTable() {
+      if (!_electionOverviewData) return;
+      const tbody = document.getElementById('ei-ac-tbody');
+      const thead = document.getElementById('ei-ac-thead');
+      if (!tbody) return;
+      const q = (document.getElementById('ei-search-input')?.value || '').toLowerCase().trim();
+      const filterYr = ['2012', '2017', '2022', '2024'].includes(_electionYear) ? _electionYear : '2022';
+
+      const rows = (_electionOverviewData.constituencies || []).filter(c => {
+        if (_electionRegion !== 'ALL' && c.region !== _electionRegion) return false;
+        if (_electionFilter === 'BATTLEGROUND' && c.classification !== 'BATTLEGROUND') return false;
+        if (_electionFilter === 'FLIPPED' && !c.flipped_2017_to_2022) return false;
+        if (_electionFilter === 'YOUTH' && !c.youth_exceeds_margin) return false;
+        if (['BJP', 'INC', 'NPP', 'NPF', 'JD(U)'].includes(_electionFilter)) {
+          if (getAcYearInfo(c, filterYr).party !== _electionFilter) return false;
+        }
+        if (q) {
+          const hay = `${c.ac_no} ${c.ac_name} ${c.district} ${c.region} ${c.y2022.winner} ${c.y2017.winner} ${c.y2012.winner} ${c.y2024?.leader || ''}`.toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        return true;
+      });
+
+      if (_electionYear === 'OVERALL') {
+        if (thead) thead.innerHTML = '<tr><th class="p-2.5">Constituency</th><th class="p-2.5">2012</th><th class="p-2.5">2017</th><th class="p-2.5">2022 Winner</th><th class="p-2.5">2024 LS</th><th class="p-2.5 text-right">Turnout</th><th class="p-2.5 text-right">Margin</th><th class="p-2.5 text-right">Action</th></tr>';
+        tbody.innerHTML = rows.map(c => {
+          const y24 = c.y2024 || {};
+          return `
+            <tr class="hover:bg-slate-50 dark:hover:bg-zinc-800/60 transition">
+              <td class="p-2.5 font-bold text-slate-900 dark:text-white whitespace-nowrap">#${c.ac_no} ${escapeHtml(c.ac_name)}<span class="block text-[10px] font-normal text-slate-400">${escapeHtml(c.district)}</span></td>
+              <td class="p-2.5">${partyBadgeHtml(c.y2012.party)}</td>
+              <td class="p-2.5">${partyBadgeHtml(c.y2017.party)}</td>
+              <td class="p-2.5">${partyBadgeHtml(c.y2022.party)} <span class="font-medium text-slate-800 dark:text-zinc-200 ml-1">${escapeHtml(c.y2022.winner)}</span></td>
+              <td class="p-2.5">${partyBadgeHtml(y24.party || 'IND')} <span class="font-medium text-slate-700 dark:text-zinc-300 ml-1">${escapeHtml(y24.leader || '--')}</span></td>
+              <td class="p-2.5 text-right font-mono whitespace-nowrap">${c.y2022.turnout_pct}% → ${y24.turnout_pct ?? '--'}%</td>
+              <td class="p-2.5 text-right font-mono whitespace-nowrap">${(c.y2022.margin || 0).toLocaleString()} <span class="text-[10px] text-slate-400">(${c.y2022.margin_pct}%)</span></td>
+              <td class="p-2.5 text-right whitespace-nowrap"><button onclick="openElectionAcModal(${c.ac_no})" class="px-2.5 py-1 rounded-lg bg-amber-100 dark:bg-amber-950/60 hover:bg-amber-200 text-amber-900 dark:text-amber-300 font-bold text-[11px] cursor-pointer">View Booths</button></td>
+            </tr>
+          `;
+        }).join('');
+        return;
+      }
+
+      if (_electionYear === 'COMPARE') {
+        const yrA = document.getElementById('ei-cmp-yr-a')?.value || '2022';
+        const yrB = document.getElementById('ei-cmp-yr-b')?.value || '2024';
+        if (thead) thead.innerHTML = `<tr><th class="p-2.5">Constituency</th><th class="p-2.5">${yrA}</th><th class="p-2.5">${yrB}</th><th class="p-2.5">Shift</th><th class="p-2.5 text-right">Turnout Δ</th><th class="p-2.5 text-right">Action</th></tr>`;
+        tbody.innerHTML = rows.map(c => {
+          const a = getAcYearInfo(c, yrA);
+          const b = getAcYearInfo(c, yrB);
+          const flipped = a.party !== b.party;
+          const shiftBadge = flipped
+            ? '<span class="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 font-bold text-[10px]">Flipped</span>'
+            : '<span class="px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 font-bold text-[10px]">Held</span>';
+          const tDiff = (a.turnout != null && b.turnout != null) ? (b.turnout - a.turnout).toFixed(1) : null;
+          const tStr = tDiff != null ? `${a.turnout}% → ${b.turnout}% <span class="text-[10px] font-bold ${tDiff >= 0 ? 'text-emerald-600' : 'text-rose-600'}">(${tDiff >= 0 ? '+' : ''}${tDiff}%)</span>` : '–';
+          return `
+            <tr class="hover:bg-slate-50 dark:hover:bg-zinc-800/60 transition">
+              <td class="p-2.5 font-bold text-slate-900 dark:text-white whitespace-nowrap">#${c.ac_no} ${escapeHtml(c.ac_name)}<span class="block text-[10px] font-normal text-slate-400">${escapeHtml(c.district)}</span></td>
+              <td class="p-2.5">${partyBadgeHtml(a.party)} <span class="font-medium ml-1">${escapeHtml(a.name)}</span></td>
+              <td class="p-2.5">${partyBadgeHtml(b.party)} <span class="font-medium ml-1">${escapeHtml(b.name)}</span></td>
+              <td class="p-2.5">${shiftBadge}</td>
+              <td class="p-2.5 text-right font-mono whitespace-nowrap">${tStr}</td>
+              <td class="p-2.5 text-right whitespace-nowrap"><button onclick="openElectionAcModal(${c.ac_no})" class="px-2.5 py-1 rounded-lg bg-amber-100 dark:bg-amber-950/60 hover:bg-amber-200 text-amber-900 dark:text-amber-300 font-bold text-[11px] cursor-pointer">View Booths</button></td>
+            </tr>
+          `;
+        }).join('');
+        return;
+      }
+
+      // Specific Single Year Mode (2012, 2017, 2022, 2024 LS)
+      if (thead) thead.innerHTML = `<tr><th class="p-2.5">Constituency</th><th class="p-2.5">${_electionYear === '2024' ? '2024 LS Leader' : _electionYear + ' Winner'}</th><th class="p-2.5 text-right">Turnout</th><th class="p-2.5 text-right">Margin</th><th class="p-2.5">Classification</th><th class="p-2.5 text-right">Action</th></tr>`;
+      tbody.innerHTML = rows.map(c => {
+        const info = getAcYearInfo(c, _electionYear);
+        const clsBadge = (_electionYear === '2022' || _electionYear === '2024')
+          ? ((info.marginPct != null && info.marginPct < 5.0)
+            ? '<span class="px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 font-bold text-[10px]">Close (&lt;5%)</span>'
+            : (c.flipped_2017_to_2022 && _electionYear === '2022'
+              ? '<span class="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 font-bold text-[10px]">Flipped</span>'
+              : '<span class="px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 font-bold text-[10px]">Stronghold</span>'))
+          : `<span class="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 font-bold text-[10px]">${escapeHtml(info.party)} Win</span>`;
+        return `
+          <tr class="hover:bg-slate-50 dark:hover:bg-zinc-800/60 transition">
+            <td class="p-2.5 font-bold text-slate-900 dark:text-white whitespace-nowrap">#${c.ac_no} ${escapeHtml(c.ac_name)}<span class="block text-[10px] font-normal text-slate-400">${escapeHtml(c.district)}</span></td>
+            <td class="p-2.5">${partyBadgeHtml(info.party)} <span class="font-medium text-slate-800 dark:text-zinc-200 ml-1">${escapeHtml(info.name)}</span></td>
+            <td class="p-2.5 text-right font-mono whitespace-nowrap">${info.turnout != null ? info.turnout + '%' : '–'}</td>
+            <td class="p-2.5 text-right font-mono whitespace-nowrap">${info.margin != null ? info.margin.toLocaleString() + (info.marginPct != null ? ` <span class="text-[10px] text-slate-400">(${info.marginPct}%)</span>` : '') : '–'}</td>
+            <td class="p-2.5">${clsBadge}</td>
+            <td class="p-2.5 text-right whitespace-nowrap"><button onclick="openElectionAcModal(${c.ac_no})" class="px-2.5 py-1 rounded-lg bg-amber-100 dark:bg-amber-950/60 hover:bg-amber-200 text-amber-900 dark:text-amber-300 font-bold text-[11px] cursor-pointer">View Booths</button></td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function setModalElectionYear(yr) {
+      _modalElectionYear = yr;
+      _expandedBoothPart = null;
+      document.querySelectorAll('.eam-yr-btn').forEach(btn => {
+        if (btn.getAttribute('data-eam-yr') === yr) {
+          btn.className = 'eam-yr-btn px-2 py-1 rounded-lg bg-amber-600 text-white shadow-xs cursor-pointer';
+        } else {
+          btn.className = 'eam-yr-btn px-2 py-1 rounded-lg text-slate-600 dark:text-zinc-300 cursor-pointer';
+        }
+      });
+      const cmpBar = document.getElementById('eam-compare-bar');
+      if (cmpBar) cmpBar.classList.toggle('hidden', yr !== 'COMPARE');
+      renderModalRealTime();
+    }
+
+    function toggleBoothExpand(partNo) {
+      _expandedBoothPart = (_expandedBoothPart === partNo) ? null : partNo;
+      renderElectionBoothsTable();
+    }
+
+    function renderElectionChart() {
+      const d = _electionOverviewData;
+      const svgEl = document.getElementById('ei-party-svg-chart');
+      const titleEl = document.getElementById('ei-chart-title');
+      if (!d || !svgEl) return;
+
+      if (_electionChartMode === 'trend') {
+        if (titleEl) titleEl.innerText = '4-Cycle Seat / Lead Comparison (2012–2024)';
+        const topParties = (d.party_trajectory || []).slice(0, 5);
+        const maxVal = Math.max(1, ...topParties.flatMap(p => [p.y2012, p.y2017, p.y2022, p.y2024]));
+        const yrColors = { y2012: '#94a3b8', y2017: '#38bdf8', y2022: '#10b981', y2024: '#f59e0b' };
+        const w = 560, h = 140, padL = 24, padB = 24, groupW = 104;
+        let bars = '';
+        topParties.forEach((p, gi) => {
+          const gx = padL + gi * groupW + 10;
+          ['y2012', 'y2017', 'y2022', 'y2024'].forEach((yk, bi) => {
+            const val = p[yk] || 0;
+            const bh = Math.round((val / maxVal) * (h - padB - 22));
+            const bx = gx + bi * 20;
+            const by = h - padB - bh;
+            bars += `<rect x="${bx}" y="${by}" width="16" height="${Math.max(2, bh)}" rx="3" fill="${yrColors[yk]}"><title>${p.party} ${yk.slice(1)}: ${val}</title></rect>`;
+            if (val > 0) bars += `<text x="${bx + 8}" y="${by - 3}" text-anchor="middle" font-size="9" class="fill-slate-600 dark:fill-zinc-300 font-bold">${val}</text>`;
+          });
+          bars += `<text x="${gx + 36}" y="${h - 6}" text-anchor="middle" font-size="11" font-weight="700" class="fill-slate-800 dark:fill-zinc-200">${escapeHtml(p.party)}</text>`;
+        });
+        svgEl.innerHTML = `
+          <div class="flex items-center justify-end gap-3 text-[10px] text-slate-500 dark:text-zinc-400 mb-1">
+            <span><span class="inline-block w-2 h-2 rounded-sm bg-slate-400 mr-1"></span>2012</span>
+            <span><span class="inline-block w-2 h-2 rounded-sm bg-sky-400 mr-1"></span>2017</span>
+            <span><span class="inline-block w-2 h-2 rounded-sm bg-emerald-500 mr-1"></span>2022</span>
+            <span><span class="inline-block w-2 h-2 rounded-sm bg-amber-500 mr-1"></span>2024 LS</span>
+          </div>
+          <svg viewBox="0 0 ${w} ${h}" class="w-full max-w-2xl h-36 mx-auto">${bars}</svg>
+        `;
+        return;
+      }
+
+      // Selected-Year Accurate Graph with 31-Seat Majority Line (for Assembly years)
+      const chartYr = ['2012', '2017', '2022', '2024'].includes(_electionYear) ? _electionYear : (document.getElementById('ei-cmp-yr-b')?.value || '2024');
+      const yrKey = `y${chartYr}`;
+      if (titleEl) titleEl.innerText = chartYr === '2024' ? '2024 Lok Sabha — AC-Segment Leads (60 Segments)' : `${chartYr} Assembly — Exact Seat Distribution (60 Seats)`;
+      const parties = (d.party_trajectory || [])
+        .map(p => ({ party: p.party, val: p[yrKey] || 0 }))
+        .filter(p => p.val > 0)
+        .sort((a, b) => b.val - a.val);
+      const maxVal = Math.max(35, ...parties.map(p => p.val));
+      const w = 560, h = 150, padL = 20, padB = 26, chartH = h - padB - 22;
+      const colW = Math.min(72, Math.floor((w - padL * 2) / Math.max(1, parties.length)));
+      let svgBody = '';
+
+      if (chartYr !== '2024') {
+        const majY = h - padB - Math.round((31 / maxVal) * chartH);
+        svgBody += `<line x1="${padL}" y1="${majY}" x2="${w - padL}" y2="${majY}" stroke="#ef4444" stroke-width="1.2" stroke-dasharray="4 3" />`;
+        svgBody += `<text x="${w - padL}" y="${majY - 4}" text-anchor="end" font-size="9" font-weight="700" fill="#ef4444">Majority: 31</text>`;
+      }
+
+      parties.forEach((p, idx) => {
+        const bx = padL + idx * colW + Math.floor(colW * 0.2);
+        const bw = Math.max(22, Math.floor(colW * 0.6));
+        const bh = Math.round((p.val / maxVal) * chartH);
+        const by = h - padB - bh;
+        const fill = PARTY_HEX[p.party] || '#64748b';
+        svgBody += `<rect x="${bx}" y="${by}" width="${bw}" height="${Math.max(3, bh)}" rx="4" fill="${fill}"><title>${p.party}: ${p.val}</title></rect>`;
+        svgBody += `<text x="${bx + bw / 2}" y="${by - 4}" text-anchor="middle" font-size="11" font-weight="800" class="fill-slate-800 dark:fill-zinc-100">${p.val}</text>`;
+        svgBody += `<text x="${bx + bw / 2}" y="${h - 7}" text-anchor="middle" font-size="10" font-weight="700" class="fill-slate-700 dark:fill-zinc-300">${escapeHtml(p.party)}</text>`;
+      });
+      svgEl.innerHTML = `<svg viewBox="0 0 ${w} ${h}" class="w-full max-w-2xl h-36 mx-auto">${svgBody}</svg>`;
+    }
+
+    function setBoothQuadFilter(quad) {
+      _boothQuadFilter = quad;
+      document.querySelectorAll('.eam-q-pill').forEach(btn => {
+        if (btn.getAttribute('data-quad') === quad) {
+          btn.classList.add('ring-2', 'ring-offset-1', 'ring-amber-500');
+        } else {
+          btn.classList.remove('ring-2', 'ring-offset-1', 'ring-amber-500');
+        }
+      });
+      renderElectionBoothsTable();
+    }
+
+    function exportWarRoomCsv() {
+      const acNo = _currentModalAcData?.ac?.ac_no;
+      if (!acNo) return;
+      window.open(`/api/elections/ac/${acNo}/war_room_csv`, '_blank');
+    }
+
+    function exportCanvassingCsv() {
+      const acNo = _currentModalAcData?.ac?.ac_no;
+      if (!acNo) return;
+      window.open(`/api/elections/ac/${acNo}/canvassing_csv`, '_blank');
+    }
+
+    function resetSimulator() {
+      const sw = document.getElementById('sim-swing');
+      const tr = document.getElementById('sim-turnout');
+      const ac = document.getElementById('sim-ac');
+      if (sw) { sw.value = 0; document.getElementById('sim-swing-val').innerText = '0.0%'; }
+      if (tr) { tr.value = 0; document.getElementById('sim-turnout-val').innerText = '0.0%'; }
+      if (ac) ac.value = '';
+      runElectionSimulator();
+    }
+
+    let _simTimer = null;
+    async function runElectionSimulator() {
+      clearTimeout(_simTimer);
+      _simTimer = setTimeout(async () => {
+        const party = document.getElementById('sim-party')?.value || 'BJP';
+        const swing = document.getElementById('sim-swing')?.value || '0';
+        const turnout = document.getElementById('sim-turnout')?.value || '0';
+        const acNo = document.getElementById('sim-ac')?.value || '';
+        const resEl = document.getElementById('sim-results');
+        if (!resEl) return;
+        try {
+          const qs = new URLSearchParams({
+            swing_pct: swing,
+            turnout_shift_pct: turnout,
+            target_party: party,
+            region: _electionRegion || 'ALL',
+          });
+          if (acNo) qs.set('ac_no', acNo);
+          const res = await fetch(`/api/elections/simulate?${qs.toString()}`);
+          if (!res.ok) return;
+          const d = await res.json();
+          const baseSeats = d.baseline_seats || {};
+          const projSeats = d.projected_seats || {};
+          const allParties = Array.from(new Set([...Object.keys(baseSeats), ...Object.keys(projSeats)])).sort((a, b) => (projSeats[b] || 0) - (projSeats[a] || 0));
+
+          let html = `
+            <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2">
+              ${allParties.slice(0, 6).map(p => {
+                const bv = baseSeats[p] || 0;
+                const pv = projSeats[p] || 0;
+                const diff = pv - bv;
+                return `
+                  <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-zinc-950 border ${pv >= 31 ? 'border-emerald-400 dark:border-emerald-700' : 'border-slate-200 dark:border-zinc-800'} text-center">
+                    <div>${partyBadgeHtml(p)}</div>
+                    <div class="text-lg font-extrabold text-slate-900 dark:text-white mt-1">${pv} <span class="text-[10px] font-normal text-slate-400">seats</span></div>
+                    <div class="text-[10px] font-mono ${diff > 0 ? 'text-emerald-600 font-bold' : (diff < 0 ? 'text-rose-600 font-bold' : 'text-slate-400')}">${diff > 0 ? '+' : ''}${diff} vs '22 (${bv})</div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          `;
+
+          if (d.booth_simulation) {
+            const bs = d.booth_simulation;
+            if (bs.target_party_contested === false) {
+              html += `
+                <div class="p-3 rounded-xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/60 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <strong class="text-amber-900 dark:text-amber-200">AC #${bs.ac_no} ${escapeHtml(bs.ac_name)} Booth Projection:</strong>
+                    <span class="ml-1 text-amber-800 dark:text-amber-300">${escapeHtml(bs.target_party || party)} did not field a candidate in this AC in 2022 (${bs.total_booths} booths).</span>
+                  </div>
+                </div>
+              `;
+            } else {
+              html += `
+                <div class="p-3 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/60 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <strong class="text-emerald-900 dark:text-emerald-200">AC #${bs.ac_no} ${escapeHtml(bs.ac_name)} Booth Projection (${escapeHtml(bs.target_candidate || bs.target_party || party)}):</strong>
+                    <span class="ml-1 text-emerald-800 dark:text-emerald-300">${bs.baseline_booths_won} → <strong>${bs.projected_booths_won}</strong> / ${bs.total_booths} booths won</span>
+                  </div>
+                  <div class="flex items-center gap-3 font-mono font-bold">
+                    <span>Flipped Booths: ${bs.flipped_booths}</span>
+                    <span>Proj. Margin: ${bs.projected_ac_margin >= 0 ? '+' : ''}${bs.projected_ac_margin.toLocaleString()}</span>
+                  </div>
+                </div>
+              `;
+            }
+          }
+
+          const flips = d.flipped_acs || [];
+          html += `
+            <div class="p-3 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 space-y-2">
+              <div class="flex items-center justify-between">
+                <strong class="text-slate-800 dark:text-zinc-200">Projected Seat Flips (${d.flipped_acs_count || 0} ACs)</strong>
+                <span class="text-[10px] text-slate-400">31 seats required for simple majority</span>
+              </div>
+              ${flips.length ? `<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">${flips.slice(0, 12).map(f => `
+                <div class="p-2 rounded-lg bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 flex items-center justify-between gap-2">
+                  <div class="min-w-0">
+                    <div class="font-bold text-slate-900 dark:text-white truncate">#${f.ac_no} ${escapeHtml(f.ac_name)}</div>
+                    <div class="text-[10px] text-slate-400">${escapeHtml(f.district)}</div>
+                  </div>
+                  <div class="text-right shrink-0 text-[10px]">
+                    <div>${partyBadgeHtml(f.from_party)} → ${partyBadgeHtml(f.to_party)}</div>
+                    <div class="font-mono text-slate-500 mt-0.5">+${f.projected_margin.toLocaleString()}</div>
+                  </div>
+                </div>
+              `).join('')}</div>` : '<p class="text-[11px] text-slate-400">Move the Vote Swing slider to project constituency flips.</p>'}
+            </div>
+          `;
+          resEl.innerHTML = html;
+        } catch (e) {
+          console.error('Simulator error:', e);
+        }
+      }, 120);
+    }
+
+    function renderElectionBoothsTable() {
+      if (!_currentModalAcData) return;
+      const ac = _currentModalAcData.ac;
+      const mode = _modalElectionYear;
+      const is24 = (mode === '2024');
+      const allBooths = _currentModalAcData.booths || [];
+      const getQ = b => is24 ? (b.quadrant_2024 || 'D_TRAILING') : (b.quadrant || 'D_TRAILING');
+      const booths = _boothQuadFilter === 'ALL' ? allBooths : allBooths.filter(b => getQ(b) === _boothQuadFilter);
+
+      const counts = { A_FORTRESS: 0, B_SWING: 0, C_GOTV: 0, D_TRAILING: 0 };
+      allBooths.forEach(b => { counts[getQ(b)] = (counts[getQ(b)] || 0) + 1; });
+      const flagsEl = document.getElementById('eam-booth-flags');
+      if (flagsEl) {
+        const lbl = mode === 'COMPARE' ? '2022 vs 2024' : (mode === 'OVERALL' ? 'All Years' : (is24 ? '2024 LS' : '2022 MLA'));
+        flagsEl.innerText = `${allBooths.length} Booths (${lbl}) • Strong: ${counts.A_FORTRESS} • Close: ${counts.B_SWING} • Low Turnout: ${counts.C_GOTV}`;
+      }
+
+      const thead = document.getElementById('eam-booths-thead');
+      const quadBadge = {
+        'A_FORTRESS': '<span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 font-bold">Strong Lead</span>',
+        'B_SWING': '<span class="text-[9px] px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 font-bold">Close Fight</span>',
+        'C_GOTV': '<span class="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 font-bold">Low Turnout</span>',
+        'D_TRAILING': '<span class="text-[9px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 font-bold">Trailing</span>',
+      };
+      const shortQuad = { 'A_FORTRESS': 'Strong', 'B_SWING': 'Close', 'C_GOTV': 'Low T.', 'D_TRAILING': 'Trail' };
+
+      if (mode === 'COMPARE') {
+        if (thead) thead.innerHTML = '<tr><th class="p-2">Part</th><th class="p-2">Polling Station</th><th class="p-2 text-right">Polled Δ (\'22→\'24)</th><th class="p-2">2022 Leader</th><th class="p-2">2024 LS Leader</th><th class="p-2 text-right">Margin Diff</th></tr>';
+      } else if (mode === 'OVERALL') {
+        if (thead) thead.innerHTML = '<tr><th class="p-2">Part</th><th class="p-2">Polling Station &amp; All-Year Class</th><th class="p-2 text-right">\'22 / \'24 Polled</th><th class="p-2">2022 Leader</th><th class="p-2">2024 Leader</th><th class="p-2 text-right">\'22 Margin</th></tr>';
+      } else {
+        const yLbl = is24 ? '2024' : '2022';
+        if (thead) thead.innerHTML = `<tr><th class="p-2">Part</th><th class="p-2">Polling Station</th><th class="p-2 text-right">${yLbl} Polled</th><th class="p-2">${yLbl} Leader</th><th class="p-2">${yLbl} Runner-Up</th><th class="p-2 text-right">Margin</th></tr>`;
+      }
+
+      document.getElementById('eam-booths-tbody').innerHTML = booths.map(b => {
+        const isExpanded = (_expandedBoothPart === b.part_no);
+        let html = '';
+
+        if (mode === 'COMPARE') {
+          const vDiff = (b.total_polled_2024 || 0) - (b.total_polled_2022 || 0);
+          const mDiff = (b.margin_votes_2024 || 0) - (b.margin_votes || 0);
+          html = `
+            <tr onclick="toggleBoothExpand(${b.part_no})" class="hover:bg-slate-50 dark:hover:bg-zinc-800/60 cursor-pointer">
+              <td class="p-2 font-mono font-bold whitespace-nowrap">#${b.part_no} <span class="text-[9px] text-slate-400">${isExpanded ? '▼' : '▶'}</span></td>
+              <td class="p-2"><div class="font-medium text-slate-900 dark:text-white">${escapeHtml(b.polling_station_name)}</div><span class="text-[9px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 font-semibold">${escapeHtml(b.trajectory_tag || 'Stable')}</span></td>
+              <td class="p-2 text-right font-mono whitespace-nowrap">${(b.total_polled_2022 || 0)} → ${(b.total_polled_2024 || 0)} <span class="block text-[10px] font-bold ${vDiff >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${vDiff >= 0 ? '+' : ''}${vDiff} votes</span></td>
+              <td class="p-2 text-emerald-700 dark:text-emerald-400 font-semibold">${escapeHtml(b.leader_2022)} (${b.leader_votes_2022})<span class="block text-[9px] text-slate-400">${shortQuad[b.quadrant] || ''}</span></td>
+              <td class="p-2 text-amber-700 dark:text-amber-300 font-semibold">${escapeHtml(b.leader_2024 || '--')} (${b.leader_votes_2024 || 0})<span class="block text-[9px] text-slate-400">${shortQuad[b.quadrant_2024] || ''}</span></td>
+              <td class="p-2 text-right font-mono font-bold whitespace-nowrap">${b.margin_votes} → ${b.margin_votes_2024 ?? 0}<span class="block text-[10px] ${mDiff >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${mDiff >= 0 ? '+' : ''}${mDiff}</span></td>
+            </tr>
+          `;
+        } else if (mode === 'OVERALL') {
+          html = `
+            <tr onclick="toggleBoothExpand(${b.part_no})" class="hover:bg-slate-50 dark:hover:bg-zinc-800/60 cursor-pointer">
+              <td class="p-2 font-mono font-bold whitespace-nowrap">#${b.part_no} <span class="text-[9px] text-slate-400">${isExpanded ? '▼' : '▶'}</span></td>
+              <td class="p-2">
+                <div class="font-medium text-slate-900 dark:text-white">${escapeHtml(b.polling_station_name)}</div>
+                <div class="flex flex-wrap items-center gap-1 mt-1">
+                  ${quadBadge[b.quadrant] || ''}
+                  <span class="text-[9px] text-slate-400 font-mono">12:${escapeHtml(ac.y2012.party)} • 17:${escapeHtml(ac.y2017.party)} • 22:${shortQuad[b.quadrant] || '-'} • 24:${shortQuad[b.quadrant_2024] || '-'}</span>
+                </div>
+              </td>
+              <td class="p-2 text-right font-mono whitespace-nowrap">${(b.total_polled_2022 || 0)} / ${(b.total_polled_2024 || 0)}</td>
+              <td class="p-2 font-semibold text-emerald-700 dark:text-emerald-400">${escapeHtml(b.leader_2022)} (${b.leader_votes_2022})</td>
+              <td class="p-2 font-semibold text-amber-700 dark:text-amber-300">${escapeHtml(b.leader_2024 || '--')} (${b.leader_votes_2024 || 0})</td>
+              <td class="p-2 text-right font-mono font-bold whitespace-nowrap">${b.margin_votes} (${b.margin_pct}%)</td>
+            </tr>
+          `;
+        } else {
+          // Clean Single-Year Mode (no crammed multi-year text)
+          const polled = is24 ? (b.total_polled_2024 || 0) : (b.total_polled_2022 || 0);
+          const turnPct = is24 ? b.est_turnout_2024 : b.est_turnout_2022;
+          const leader = is24 ? (b.leader_2024 || '--') : (b.leader_2022 || '--');
+          const lVotes = is24 ? (b.leader_votes_2024 || 0) : (b.leader_votes_2022 || 0);
+          const runner = is24 ? (b.runner_up_2024 || '--') : (b.runner_up_2022 || '--');
+          const rVotes = is24 ? (b.runner_up_votes_2024 || 0) : (b.runner_up_votes_2022 || 0);
+          const mVotes = is24 ? (b.margin_votes_2024 ?? 0) : (b.margin_votes ?? 0);
+          const mPct = is24 ? (b.margin_pct_2024 ?? 0) : (b.margin_pct ?? 0);
+          const qActive = getQ(b);
+          html = `
+            <tr onclick="toggleBoothExpand(${b.part_no})" class="hover:bg-slate-50 dark:hover:bg-zinc-800/60 cursor-pointer">
+              <td class="p-2 font-mono font-bold whitespace-nowrap">#${b.part_no} <span class="text-[9px] text-slate-400">${isExpanded ? '▼' : '▶'}</span></td>
+              <td class="p-2"><div class="font-medium text-slate-900 dark:text-white">${escapeHtml(b.polling_station_name)}</div><div class="mt-0.5">${quadBadge[qActive] || ''}</div></td>
+              <td class="p-2 text-right font-mono whitespace-nowrap">${polled.toLocaleString()}${turnPct != null ? `<span class="block text-[9px] text-slate-400">${turnPct}%</span>` : ''}</td>
+              <td class="p-2 font-semibold ${is24 ? 'text-amber-700 dark:text-amber-300' : 'text-emerald-700 dark:text-emerald-400'}">${escapeHtml(leader)} <span class="font-mono">(${lVotes})</span></td>
+              <td class="p-2 text-slate-600 dark:text-zinc-400">${escapeHtml(runner)} <span class="font-mono">(${rVotes})</span></td>
+              <td class="p-2 text-right font-mono font-bold whitespace-nowrap">${mVotes} <span class="text-[10px] text-slate-400">(${mPct}%)</span></td>
+            </tr>
+          `;
+        }
+
+        if (isExpanded) {
+          const c22Html = (b.candidates_2022 || []).slice(0, 4).map(c => `<div class="flex justify-between"><span>${escapeHtml(c.name)}</span><span class="font-mono font-bold">${c.votes}</span></div>`).join('');
+          const c24Html = (b.candidates_2024 || []).slice(0, 4).map(c => `<div class="flex justify-between"><span>${escapeHtml(c.name)}</span><span class="font-mono font-bold">${c.votes}</span></div>`).join('');
+          const dem = b.demographics || {};
+          const totMF = (dem.male_count || 0) + (dem.female_count || 0);
+          const femPct = totMF > 0 ? ((dem.female_count / totMF) * 100).toFixed(1) : '--';
+          const targetBadgeCls = b.target_action === 'FLIP' ? 'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300' : (b.target_action === 'GOTV' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300' : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300');
+          html += `
+            <tr class="bg-slate-50/90 dark:bg-zinc-950/80">
+              <td colspan="6" class="p-3">
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-[11px]">
+                  <div class="p-2 rounded-lg bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 space-y-1">
+                    <div class="flex items-center justify-between font-bold text-slate-700 dark:text-zinc-200">
+                      <span>Roll &amp; Micro-Targeting</span>
+                      <span class="px-1.5 py-0.5 rounded text-[9px] font-bold ${targetBadgeCls}">${escapeHtml(b.target_action || 'HOLD')}: ${(b.target_votes || 0)} votes</span>
+                    </div>
+                    <div class="flex justify-between"><span>Youth (18–29):</span><strong class="font-mono">${dem.youth_18_29 ?? 0} (${dem.youth_pct ?? 0}%)</strong></div>
+                    <div class="flex justify-between"><span>Female Share:</span><strong class="font-mono">${femPct}% (SR: ${dem.gender_ratio ?? '--'})</strong></div>
+                    <div class="flex justify-between"><span>4+ HH / Top Clan:</span><strong class="font-mono">${dem.large_hh_4_plus ?? 0} / ${escapeHtml(dem.top_surname || '--')} (${dem.surname_cluster_pct ?? 0}%)</strong></div>
+                    <div class="flex justify-between"><span>Swing / Elasticity:</span><strong class="font-mono">${b.swing_index != null ? (b.swing_index > 0 ? '+' : '') + b.swing_index + '%' : '--'} / ${b.turnout_elasticity ?? '--'}</strong></div>
+                    ${b.geo && b.geo.latitude ? `<div class="flex justify-between items-center"><span>PS Geo:</span><a href="https://www.openstreetmap.org/?mlat=${b.geo.latitude}&mlon=${b.geo.longitude}#map=16/${b.geo.latitude}/${b.geo.longitude}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" class="font-mono text-emerald-600 dark:text-emerald-400 hover:underline">${Number(b.geo.latitude).toFixed(4)}, ${Number(b.geo.longitude).toFixed(4)} ↗</a></div>` : ''}
+                    ${dem.deleted_count ? `<div class="text-[10px] text-rose-600 dark:text-rose-400 font-semibold">Deleted/Struck-off flags: ${dem.deleted_count}</div>` : ''}
+                  </div>
+                  <div class="p-2 rounded-lg bg-white dark:bg-zinc-900 border border-emerald-200 dark:border-emerald-900/50 space-y-1">
+                    <div class="flex justify-between font-bold text-emerald-700 dark:text-emerald-300"><span>2022 MLA Booth Votes</span><span>${(b.total_polled_2022 || 0).toLocaleString()} (${b.est_turnout_2022 ?? '--'}%)</span></div>
+                    ${c22Html || '<span class="text-slate-400">No data</span>'}
+                  </div>
+                  <div class="p-2 rounded-lg bg-white dark:bg-zinc-900 border border-amber-200 dark:border-amber-900/50 space-y-1">
+                    <div class="flex justify-between font-bold text-amber-700 dark:text-amber-300"><span>2024 LS Booth Votes</span><span>${(b.total_polled_2024 || 0).toLocaleString()} (${b.est_turnout_2024 ?? '--'}%)</span></div>
+                    ${c24Html || '<span class="text-slate-400">No data</span>'}
+                  </div>
+                </div>
+              </td>
+            </tr>
+          `;
+        }
+        return html;
+      }).join('');
+    }
+
+    function renderModalRealTime() {
+      if (!_currentModalAcData) return;
+      const ac = _currentModalAcData.ac;
+      const y24 = ac.y2024 || {};
+      const mode = _modalElectionYear;
+      const bannerEl = document.getElementById('eam-ac-compare-banner');
+
+      if (mode === 'COMPARE') {
+        const yrA = document.getElementById('eam-cmp-yr-a')?.value || '2022';
+        const yrB = document.getElementById('eam-cmp-yr-b')?.value || '2024';
+        const a = getAcYearInfo(ac, yrA);
+        const b = getAcYearInfo(ac, yrB);
+        const flipped = a.party !== b.party;
+        const mDiff = (a.margin != null && b.margin != null) ? (b.margin - a.margin) : null;
+        const tDiff = (a.turnout != null && b.turnout != null) ? (b.turnout - a.turnout).toFixed(1) : null;
+        document.getElementById('eam-subtitle').innerText = `Custom Compare: ${yrA} (${a.party}) vs ${yrB} (${b.party}) • ${flipped ? 'Flipped' : 'Held'}`;
+        if (bannerEl) {
+          bannerEl.classList.remove('hidden');
+          bannerEl.innerHTML = `
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div><strong>${yrA}:</strong> ${partyBadgeHtml(a.party)} ${escapeHtml(a.name)}${a.margin != null ? ` (Margin: ${a.margin.toLocaleString()})` : ''}</div>
+              <span class="font-bold ${flipped ? 'text-amber-700 dark:text-amber-300' : 'text-emerald-700 dark:text-emerald-300'}">${flipped ? '🔄 Flipped' : '🏰 Held'}</span>
+              <div><strong>${yrB}:</strong> ${partyBadgeHtml(b.party)} ${escapeHtml(b.name)}${b.margin != null ? ` (Margin: ${b.margin.toLocaleString()})` : ''}</div>
+              ${tDiff != null ? `<span class="font-mono font-bold">Turnout Δ: ${tDiff >= 0 ? '+' : ''}${tDiff}%</span>` : ''}
+              ${mDiff != null ? `<span class="font-mono font-bold">Margin Δ: ${mDiff >= 0 ? '+' : ''}${mDiff.toLocaleString()}</span>` : ''}
+            </div>
+          `;
+        }
+      } else if (mode === '2012' || mode === '2017') {
+        const info = getAcYearInfo(ac, mode);
+        document.getElementById('eam-subtitle').innerText = `${mode} Assembly Winner: ${info.name} (${info.party})`;
+        if (bannerEl) {
+          bannerEl.classList.remove('hidden');
+          bannerEl.innerHTML = `<strong>${mode} AC Result:</strong> ${partyBadgeHtml(info.party)} <span class="font-bold ml-1">${escapeHtml(info.name)}</span> — <span class="text-slate-500">Booth-level Form 20 PDFs are available for 2022 &amp; 2024 LS (showing 2022 booth table below).</span>`;
+        }
+      } else {
+        if (bannerEl) bannerEl.classList.add('hidden');
+        if (mode === '2024') {
+          document.getElementById('eam-subtitle').innerText = `2024 LS Turnout: ${y24.turnout_pct ?? '--'}% • Polled: ${(y24.total_polled || 0).toLocaleString()} • Leader: ${y24.leader || '--'} (${y24.party || 'IND'})`;
+        } else if (mode === 'OVERALL') {
+          document.getElementById('eam-subtitle').innerText = `All Cycles: 12:${ac.y2012.party} → 17:${ac.y2017.party} → 22:${ac.y2022.party} → 24:${y24.party || 'IND'} • Turnout '22: ${ac.y2022.turnout_pct}% → '24: ${y24.turnout_pct ?? '--'}%`;
+        } else {
+          document.getElementById('eam-subtitle').innerText = `2022 MLA Turnout: ${ac.y2022.turnout_pct}% • Polled: ${(ac.y2022.total_polled || 0).toLocaleString()} • Margin: ${(ac.y2022.margin || 0).toLocaleString()} (${ac.y2022.margin_pct}%)`;
+        }
+      }
+      renderElectionBoothsTable();
+    }
+
+    async function openElectionAcModal(acNo) {
+      pushModalHistory('election_ac');
+      const modal = document.getElementById('electionAcModal');
+      if (modal) modal.classList.remove('hidden');
+      setElectionModalTab('summary');
+      _modalElectionYear = (_electionYear === '2024') ? '2024' : '2022';
+      _expandedBoothPart = null;
+      _boothQuadFilter = 'ALL';
+      try {
+        const res = await fetch(`/api/elections/ac/${acNo}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        _currentModalAcData = data;
+        const ac = data.ac;
+        const y24 = ac.y2024 || {};
+        document.getElementById('eam-badge').innerText = `AC #${ac.ac_no} • ${ac.district}`;
+        document.getElementById('eam-title').innerText = `${ac.ac_no}. ${ac.ac_name} — Constituency Results`;
+
+        document.getElementById('eam-timeline').innerHTML = [
+          { yr: '2012', party: ac.y2012.party, name: ac.y2012.winner },
+          { yr: '2017', party: ac.y2017.party, name: ac.y2017.winner },
+          { yr: '2022 MLA', party: ac.y2022.party, name: ac.y2022.winner },
+          { yr: '2024 LS', party: y24.party || 'IND', name: y24.leader || '--' },
+        ].map(x => `
+          <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800">
+            <div class="flex items-center justify-between mb-1"><span class="font-bold text-slate-500">${x.yr}</span>${partyBadgeHtml(x.party)}</div>
+            <p class="font-bold text-slate-900 dark:text-white truncate">${escapeHtml(x.name)}</p>
+          </div>
+        `).join('');
+
+        const renderCandBars = (list, total, barCls) => (list || []).slice(0, 5).map((c, idx) => {
+          const pct = ((c.votes / (total || 1)) * 100).toFixed(1);
+          return `
+            <div class="space-y-0.5 text-xs">
+              <div class="flex justify-between">
+                <span class="${idx === 0 ? 'font-bold text-slate-900 dark:text-white' : 'text-slate-600 dark:text-zinc-300'}">${idx === 0 ? '🏆 ' : ''}${escapeHtml(c.name)}</span>
+                <span class="font-mono font-semibold">${(c.votes || 0).toLocaleString()} (${pct}%)</span>
+              </div>
+              <div class="w-full h-1.5 bg-slate-200 dark:bg-zinc-800 rounded-full overflow-hidden">
+                <div class="h-full ${idx === 0 ? barCls : 'bg-slate-400 dark:bg-zinc-600'}" style="width: ${pct}%"></div>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        document.getElementById('eam-candidates').innerHTML = renderCandBars(ac.y2022.candidate_totals, ac.y2022.total_polled, 'bg-emerald-500');
+        document.getElementById('eam-candidates-2024').innerHTML = renderCandBars(y24.candidate_totals, y24.total_polled, 'bg-amber-500');
+
+        setModalElectionYear(_modalElectionYear);
+        setBoothQuadFilter('ALL');
+
+        const hhEl = document.getElementById('eam-swing-households');
+        const hhBadge = document.getElementById('eam-hh-count-badge');
+        const hhs = data.top_swing_households || [];
+        if (hhBadge) hhBadge.innerText = `${data.households_4plus_count ?? hhs.length} Priority Households`;
+        hhEl.innerHTML = hhs.length ? hhs.map(h => `
+          <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 flex items-center justify-between gap-2">
+            <div class="min-w-0">
+              <div class="flex items-center gap-1.5">
+                <p class="font-bold text-slate-900 dark:text-white truncate">Part #${h.part_no} • House ${escapeHtml(h.house_no)}</p>
+                <span class="text-[9px] px-1.5 py-0.5 rounded font-bold ${h.quadrant === 'B_SWING' ? 'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300' : (h.quadrant === 'C_GOTV' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300' : 'bg-slate-200 text-slate-700 dark:bg-zinc-800 dark:text-zinc-300')}">${h.quadrant === 'B_SWING' ? 'Swing' : (h.quadrant === 'C_GOTV' ? 'GOTV' : 'Base')}</span>
+              </div>
+              <p class="text-[10px] text-slate-500 dark:text-zinc-400 truncate">${h.elector_count} electors (${h.youth_count || 0} youth${h.deleted_count ? `, ${h.deleted_count} del` : ''}) • ${escapeHtml(h.head_hint || '')}</p>
+            </div>
+            <button onclick="openFamilyModal(${h.voter_id})" class="px-2 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-bold shrink-0 cursor-pointer">Family Tree</button>
+          </div>
+        `).join('') : '<p class="text-xs text-slate-500 col-span-full">No 4+ elector households flagged in Close Fight / Low Turnout booths for this AC.</p>';
+
+        const affEl = document.getElementById('eam-affidavits-list');
+        const affs = data.affidavits_2022 || [];
+        if (affEl) {
+          affEl.innerHTML = affs.length ? affs.map(c => `
+            <div class="p-3 rounded-xl bg-slate-50 dark:bg-zinc-950 border ${c.is_winner ? 'border-emerald-300 dark:border-emerald-800' : 'border-slate-200 dark:border-zinc-800'} flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div class="space-y-0.5 min-w-0">
+                <div class="flex flex-wrap items-center gap-1.5">
+                  <strong class="text-slate-900 dark:text-white">${c.is_winner ? '🏆 ' : ''}${escapeHtml(c.name)}</strong>
+                  ${partyBadgeHtml(c.party)}
+                  ${c.is_party_switcher ? `<span class="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 font-bold">Turncoat (2017: ${escapeHtml(c.party_2017 || '?')})</span>` : ''}
+                  ${c.criminal_cases > 0 ? `<span class="text-[9px] px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 font-bold">${c.criminal_cases} Criminal Case${c.criminal_cases > 1 ? 's' : ''}</span>` : '<span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-semibold">Clean Record</span>'}
+                </div>
+                <div class="text-[11px] text-slate-500 dark:text-zinc-400">
+                  Age: <strong>${c.age ?? '--'}</strong> • Edu: <strong>${escapeHtml(c.education || 'N/A')}</strong>
+                </div>
+              </div>
+              <div class="flex sm:flex-col items-center sm:items-end justify-between gap-1 shrink-0">
+                <div class="text-right">
+                  <span class="text-[10px] text-slate-400 block">Assets / Liabilities</span>
+                  <strong class="font-mono text-slate-900 dark:text-white">${escapeHtml(c.total_assets_display || '₹0')}</strong>
+                  <span class="text-[10px] text-slate-400 font-mono"> / ${escapeHtml(c.liabilities_display || '₹0')}</span>
+                </div>
+                ${c.source_url ? `<a href="${escapeHtml(c.source_url)}" target="_blank" rel="noopener noreferrer" class="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 hover:underline">MyNeta Affidavit ↗</a>` : ''}
+              </div>
+            </div>
+          `).join('') : '<p class="text-xs text-slate-500">No MyNeta affidavit records found for this AC.</p>';
+        }
+
+        if (window.lucide) lucide.createIcons();
+      } catch (e) {
+        console.error('openElectionAcModal error:', e);
+      }
+    }
+
+    function closeElectionAcModalDirect() {
+      const modal = document.getElementById('electionAcModal');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    function closeElectionAcModal() {
+      closeModalWithHistory('election_ac', closeElectionAcModalDirect);
     }
   </script>
 </body>

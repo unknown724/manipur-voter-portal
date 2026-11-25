@@ -126,6 +126,30 @@ def init_db():
 
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_household_geo_lookup ON household_geo(ac_no, part_no, normalized_house_no)")
 
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS candidate_affidavits (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        year INTEGER NOT NULL,
+        ac_no INTEGER NOT NULL,
+        ac_name TEXT NOT NULL,
+        name TEXT NOT NULL,
+        norm_name TEXT NOT NULL,
+        party TEXT NOT NULL,
+        is_winner INTEGER DEFAULT 0,
+        criminal_cases INTEGER DEFAULT 0,
+        education TEXT,
+        age INTEGER,
+        total_assets_inr INTEGER DEFAULT 0,
+        total_assets_display TEXT,
+        liabilities_inr INTEGER DEFAULT 0,
+        liabilities_display TEXT,
+        party_2017 TEXT,
+        is_party_switcher INTEGER DEFAULT 0,
+        source_url TEXT
+    )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_cand_aff_ac_year ON candidate_affidavits(ac_no, year)")
+
     conn.commit()
     conn.close()
 
