@@ -48,6 +48,7 @@ def init_db():
         part_no INTEGER DEFAULT 1,
         polling_station_name TEXT,
         section_name TEXT,
+        status TEXT DEFAULT 'ACTIVE',
         FOREIGN KEY (ac_no) REFERENCES constituencies (ac_no)
     )
     """)

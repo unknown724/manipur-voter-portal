@@ -801,7 +801,7 @@ def get_voter_family(voter_id: int):
     # 3. Shared family surname / clan token
     # -----------------------------------------------------------------
     cross_part_candidates = []
-    should_search_cross_part = (len(same_house) <= 1 or not has_same_house_parent)
+    should_search_cross_part = (len(same_house) <= 1 or not has_same_house_parent or t_age >= 30)
     is_distinctive_target = len(core_name_words) >= 2 or len(core_rel_words) >= 2
 
     if should_search_cross_part and is_distinctive_target and base_house and len(base_house) >= 1:
@@ -925,12 +925,21 @@ def get_voter_family(voter_id: int):
         is_deceased_collateral = False
         if m_rel_clan == primary_clan or (primary_clan and primary_clan.lower() in m_rel.lower()):
             is_deceased_collateral = True
-        # Condition 4: Target's child naming target
-        is_child_match = match_person_names(t_name, m_rel, primary_clan)
+        # Condition 4: Target's child naming target (or naming target's husband when target is married female)
+        is_child_match = match_person_names(t_name, m_rel, primary_clan) or (
+            t_sex == "F" and t_rel_type == "Husband" and t_rel and match_person_names(t_rel, m_rel, primary_clan)
+        )
+        # Condition 4.5: Shared last-token surname (covers Nepali/Gorkha/Kuki/Naga surname-last naming like 'Chhetry', 'Chamling', 'Bhandari')
+        m_core = filter_core_words(clean_words(m_name))
+        is_surname_match = bool(
+            t_words and m_core and len(t_words[-1]) >= 4 and (
+                t_words[-1] == m_core[-1] or token_similarity(t_words[-1], m_core[-1]) >= 0.88
+            )
+        )
         # Condition 5: Matrilocal elder (mother's father in house)
         is_matrilocal_elder = (m.get("gender") == "M" and (m.get("age") or 0) - t_age >= 35 and m_clan and t_rel_type == "Mother" and m_clan == extract_clan_or_surname(t_rel))
 
-        if is_clan_match or is_direct_parent or is_mother_match or is_spouse_match or is_daughter_in_law or is_in_law_match or is_deceased_collateral or is_child_match or is_matrilocal_elder:
+        if is_clan_match or is_direct_parent or is_mother_match or is_spouse_match or is_daughter_in_law or is_in_law_match or is_deceased_collateral or is_child_match or is_surname_match or is_matrilocal_elder:
             target_family_cluster.append(m)
         else:
             unrelated_cohabitants.append(m)
@@ -1178,13 +1187,13 @@ def get_voter_family(voter_id: int):
 
         is_child = False
         # Child Case 1: Directly names target as father or mother
-        if match_person_names(t_name, m_rel, primary_clan) and 14 <= -diff <= 48:
+        if match_person_names(t_name, m_rel, primary_clan) and 12 <= -diff <= 55:
             is_child = True
         # Child Case 2: Target's spouse is named as parent
-        elif any(match_person_names(s["name"], m_rel, primary_clan) for s in spouses) and 14 <= -diff <= 48:
+        elif any(match_person_names(s["name"], m_rel, primary_clan) for s in spouses) and 12 <= -diff <= 55:
             is_child = True
         # Child Case 3: Target is married female, candidate names target's husband as father
-        elif t_sex == "F" and t_rel_type == "Husband" and match_person_names(t_rel, m_rel, primary_clan) and 14 <= -diff <= 48:
+        elif t_sex == "F" and t_rel_type == "Husband" and match_person_names(t_rel, m_rel, primary_clan) and 12 <= -diff <= 55:
             is_child = True
 
         if is_child:
@@ -1245,9 +1254,9 @@ def get_voter_family(voter_id: int):
                     siblings_spouses.append(sp)
                     assigned_ids.add(sp["id"])
 
-    # Pass 3.2: Compound Children Resolution for Adult Parents (Age >= 32)
+    # Pass 3.2: Compound Children Resolution for Adult Parents (Age >= 30)
     # Recursively unifies all biological sons and daughters across adjacent compound parcels
-    if t_age >= 32:
+    if t_age >= 30:
         paternal_ref = None
         if t_sex == "F":
             if t_rel_type == "Husband":
@@ -1268,25 +1277,35 @@ def get_voter_family(voter_id: int):
             bc_rel_type = (bc.get("relation_type") or "Father").capitalize()
             diff_bc = t_age - (bc.get("age") or 0)
 
-            # Must satisfy physiological biological parent-child age gap: 14 to 48 years
-            if not (14 <= diff_bc <= 48): continue
-            bc_clan = extract_clan_or_surname(bc["name"])
-            allowed_clans = set()
-            if primary_clan:
-                allowed_clans.add(primary_clan.lower())
-            if target_clan:
-                allowed_clans.add(target_clan.lower())
-            if spouses:
-                sp_clan = extract_clan_or_surname(spouses[0]["name"])
-                if sp_clan:
-                    allowed_clans.add(sp_clan.lower())
-            if allowed_clans and bc_clan not in allowed_clans:
+            # Must satisfy physiological biological parent-child age gap: 12 to 55 years (symmetric with PASS 1)
+            if not (12 <= diff_bc <= 55): continue
+
+            is_match = False
+            if paternal_ref and bc_rel_type == "Father" and match_person_names(paternal_ref, bc_rel, primary_clan):
+                is_match = True
+            elif bc_rel_type == "Mother" and match_person_names(t_name, bc_rel, primary_clan):
+                is_match = True
+            if not is_match:
                 continue
 
-            # Maternal feasibility check against target's wife
-            if spouses and spouses[0].get("gender") == "F" and not spouses[0].get("is_deceased"):
-                w_age = spouses[0].get("age") or 0
-                if w_age - (bc.get("age") or 0) < 14:
+            # Clan guard: check both first-token clan (Meitei) and last-token surname (Nepali/Kuki/Naga).
+            # Bypass clan guard if the relative_name is a strong multi-word match to parent's full name.
+            bc_rel_words = filter_core_words(clean_words(bc_rel))
+            strong_multiword_parent = len(bc_rel_words) >= 2 and len(filter_core_words(clean_words(paternal_ref or t_name))) >= 2
+            if not strong_multiword_parent:
+                bc_words = filter_core_words(clean_words(bc["name"]))
+                bc_clan = extract_clan_or_surname(bc["name"])
+                bc_last = bc_words[-1].lower() if bc_words else ""
+                allowed_clans = set()
+                for ref_str in [primary_clan, target_clan, (t_words[-1] if t_words else None)]:
+                    if ref_str:
+                        allowed_clans.add(ref_str.lower())
+                if spouses:
+                    sp_words = filter_core_words(clean_words(spouses[0]["name"]))
+                    sp_clan = extract_clan_or_surname(spouses[0]["name"])
+                    if sp_clan: allowed_clans.add(sp_clan.lower())
+                    if sp_words: allowed_clans.add(sp_words[-1].lower())
+                if allowed_clans and (bc_clan not in allowed_clans and bc_last not in allowed_clans):
                     continue
 
             # Same-House Father Priority:
@@ -1294,23 +1313,16 @@ def get_voter_family(voter_id: int):
             if bc.get("house_no") and bc.get("house_no") != target.get("house_no"):
                 cursor.execute("""
                     SELECT * FROM voters 
-                    WHERE ac_no = ? AND part_no = ? AND house_no = ? AND gender = 'M' AND (age - ?) >= 14 AND (age - ?) <= 55
+                    WHERE ac_no = ? AND part_no = ? AND house_no = ? AND gender = 'M' AND (age - ?) >= 12 AND (age - ?) <= 55
                 """, (ac_no, part_no, bc.get("house_no"), bc.get("age") or 0, bc.get("age") or 0))
                 raw_shf = [dict(f) for f in cursor.fetchall()]
                 same_house_fathers = [f for f in raw_shf if match_person_names(f["name"], bc_rel, primary_clan)]
                 if same_house_fathers:
                     continue
 
-            is_match = False
-            if paternal_ref and bc_rel_type == "Father" and match_person_names(paternal_ref, bc_rel, primary_clan):
-                is_match = True
-            elif bc_rel_type == "Mother" and match_person_names(t_name, bc_rel, primary_clan):
-                is_match = True
-
-            if is_match:
-                bc["audit_tier"] = "GOLD_SAME_BOOTH_CLUSTER" if bc.get("house_no") != target.get("house_no") else "GOLD_SAME_HOUSEHOLD"
-                children.append(bc)
-                assigned_ids.add(bc["id"])
+            bc["audit_tier"] = "GOLD_SAME_BOOTH_CLUSTER" if bc.get("house_no") != target.get("house_no") else "GOLD_SAME_HOUSEHOLD"
+            children.append(bc)
+            assigned_ids.add(bc["id"])
 
     # Pass 3.3: In-Laws & Grandchildren from All Children's Dwellings
     for ch in list(children):
@@ -2014,10 +2026,14 @@ def get_voter_family(voter_id: int):
         if not s.get("is_deceased"): bio_relatives.append(s)
     for sib in formatted_siblings:
         if not sib.get("is_deceased"): bio_relatives.append(sib)
+    for ssp in formatted_siblings_spouses:
+        if not ssp.get("is_deceased"): bio_relatives.append(ssp)
     for n in nephews_nieces:
         if not n.get("is_deceased"): bio_relatives.append(n)
     for ch in formatted_children:
         if not ch.get("is_deceased"): bio_relatives.append(ch)
+    for cil in formatted_children_in_law:
+        if not cil.get("is_deceased"): bio_relatives.append(cil)
     for gc in formatted_grandchildren:
         if not gc.get("is_deceased"): bio_relatives.append(gc)
     for g in paternal_grandparents:
@@ -2034,19 +2050,19 @@ def get_voter_family(voter_id: int):
     t_sec = target.get("section_name") or ""
     t_ps = target.get("polling_station_name") or ""
     t_ac_name = target.get("ac_name") or ""
-    b_lat, b_lng, v_name = resolve_booth_geo(ac_no, part_no, t_ps, t_sec)
+    b_lat, b_lng, v_name, geo_source = resolve_booth_geo(ac_no, part_no, t_ps, t_sec)
     booth_info = extract_polling_building_info(t_ps, t_sec, t_ac_name)
     
     # 100% Verified Google Maps Query using official civic landmark
     search_parts = [booth_info["building_name"]]
     if booth_info["locality"] and booth_info["locality"].lower() not in booth_info["building_name"].lower():
         search_parts.append(booth_info["locality"])
-    if t_ac_name and t_ac_name.lower() not in booth_info["locality"].lower():
+    if t_ac_name and t_ac_name.lower() not in " ".join(search_parts).lower():
         search_parts.append(t_ac_name)
-    search_parts.append("Manipur")
+    search_parts.append("Manipur, India")
     encoded_search = urllib.parse.quote_plus(", ".join([p for p in search_parts if p]))
     g_search_url = f"https://www.google.com/maps/search/?api=1&query={encoded_search}"
-    g_coord_url = f"https://www.google.com/maps?q={b_lat},{b_lng}"
+    g_coord_url = f"https://www.google.com/maps?q={b_lat},{b_lng}" if geo_source == "EXACT_BUILDING" else g_search_url
     
     polling_geo = {
         "building_name": booth_info["building_name"],
@@ -2054,7 +2070,7 @@ def get_voter_family(voter_id: int):
         "locality": booth_info["locality"],
         "latitude": b_lat,
         "longitude": b_lng,
-        "confidence": "VERIFIED_ECI_POLLING_STATION",
+        "confidence": geo_source,
         "google_maps_url": g_search_url,
         "google_maps_coord_url": g_coord_url
     }
@@ -2086,7 +2102,11 @@ def get_voter_family(voter_id: int):
             "children_in_law": formatted_children_in_law,
             "grandchildren": formatted_grandchildren,
             "others": formatted_others,
-            "unrelated_cohabitants": [format_member(u, "Separate Household Unit (Unrelated)") for u in unrelated_cohabitants]
+            "unrelated_cohabitants": [
+                format_member(u, "Separate Household Unit (Unrelated)")
+                for u in unrelated_cohabitants
+                if u.get("id") not in assigned_ids and u.get("id") != target["id"]
+            ]
         }
     }
 
@@ -2216,7 +2236,7 @@ def extract_polling_building_info(ps_raw_name: str, section_name: str = "", ac_n
         wing_found = None
         building_parts = []
         for p in parts:
-            if not wing_found and any(w in p.lower() for w in ["wing", "room", "left", "right", "north", "south", "east", "west"]):
+            if not wing_found and any(w in p.lower() for w in ["wing", "room", "left", "right", "north", "nort", "south", "east", "west"]):
                 wing_found = p
             else:
                 building_parts.append(p)
@@ -2228,43 +2248,62 @@ def extract_polling_building_info(ps_raw_name: str, section_name: str = "", ac_n
             
     cleaned_prefix = re.sub(r'^\d+\s*[-–]\s*', '', raw)
     loc_clean = re.sub(r'\([^)]*\)', '', cleaned_prefix).strip()
-    locality = loc_clean or section_name or ac_name
+    # Strip trailing split markers like (A), (B) and clean section prefixes like 1-
+    loc_clean = re.sub(r'\s*\([A-Za-z0-9]+\)\s*$', '', loc_clean).strip()
+    sec_clean = re.sub(r'^\d+\s*[-–]\s*', '', (section_name or '')).strip()
+    locality = loc_clean or sec_clean or ac_name
 
     if not building:
-        building = cleaned_prefix or raw or "Designated Polling Station"
+        building = re.sub(r'\s*\([A-Za-z0-9]+\)\s*$', '', cleaned_prefix).strip() or raw or "Designated Polling Station"
 
     return {"building_name": building, "wing": wing, "locality": locality}
 
 def resolve_booth_geo(ac_no: int, part_no: int, ps_name: str = "", section_name: str = ""):
+    # 1. Check authoritative cached coordinates in polling_station_geo table
+    try:
+        conn = get_connection()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT latitude, longitude, source FROM polling_station_geo WHERE ac_no = ? AND part_no = ?",
+                (ac_no, part_no)
+            )
+            row = cur.fetchone()
+            if row and row["latitude"] and row["longitude"]:
+                return row["latitude"], row["longitude"], None, (row["source"] or "EXACT_BUILDING")
+        finally:
+            conn.close()
+    except Exception:
+        pass
+
+    # 2. Check verified Manipur village/leikai centroid dictionary
     v_name, v_coords = find_village_anchor(section_name, ps_name)
     if v_coords:
-        return v_coords[0], v_coords[1], v_name
+        return v_coords[0], v_coords[1], v_name, "VERIFIED_LOCALITY"
+
+    # 3. Honest AC headquarters fallback (no synthetic spiral jitter)
     base = AC_CENTROIDS.get(ac_no, [24.8170, 93.9368])
-    theta = math.radians((part_no * 137.5) % 360)
-    r = math.sqrt(min(part_no, 60) / 60.0) * 0.025
-    lat = round(base[0] + r * math.cos(theta), 6)
-    lng = round(base[1] + r * math.sin(theta), 6)
-    return lat, lng, None
+    return base[0], base[1], None, "AC_AREA_APPROX"
 
 def resolve_household_geo(ac_no: int, part_no: int, raw_house: str, section_name: str = "", polling_station_name: str = ""):
-    # Golden Rule: 100% Accuracy. ECI does not provide private household GPS coordinates.
+    # Golden Rule: ECI does not provide private household GPS coordinates.
     # Therefore, the official geographical anchor is strictly the Designated Polling Station building.
-    b_lat, b_lng, v_name = resolve_booth_geo(ac_no, part_no, polling_station_name, section_name)
+    b_lat, b_lng, v_name, geo_source = resolve_booth_geo(ac_no, part_no, polling_station_name, section_name)
     disp_village = v_name or f"AC-{ac_no} Part-{part_no}"
-    return b_lat, b_lng, "VERIFIED_ECI_POLLING_STATION", disp_village, "OFFICIAL_POLLING_BOOTH"
+    return b_lat, b_lng, geo_source, disp_village, "OFFICIAL_POLLING_BOOTH"
 
 @app.get("/api/voter/{voter_id}/household_map")
 def get_voter_household_map(voter_id: int):
     conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM voters WHERE id = ?", (voter_id,))
-    target_row = cursor.fetchone()
-    if not target_row:
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM voters WHERE id = ?", (voter_id,))
+        target_row = cursor.fetchone()
+        if not target_row:
+            raise HTTPException(status_code=404, detail="Voter not found")
+        target = dict(target_row)
+    finally:
         conn.close()
-        raise HTTPException(status_code=404, detail="Voter not found")
-    
-    target = dict(target_row)
-    conn.close()
     
     fam_data = get_voter_family(voter_id)
     branches = fam_data.get("branches", {})
@@ -2277,22 +2316,45 @@ def get_voter_household_map(voter_id: int):
     ps_name = head.get("polling_station_name") or target.get("polling_station_name") or ""
     ac_name = head.get("ac_name") or target.get("ac_name") or ""
     
-    b_lat, b_lng, v_name = resolve_booth_geo(anchor_ac, anchor_part, ps_name, sec_name)
+    b_lat, b_lng, v_name, geo_source = resolve_booth_geo(anchor_ac, anchor_part, ps_name, sec_name)
     booth_info = extract_polling_building_info(ps_name, sec_name, ac_name)
+
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT district FROM constituencies WHERE ac_no = ?", (anchor_ac,))
+        dist_row = cursor.fetchone()
+        district_name = dist_row["district"] if dist_row and dist_row["district"] else ""
+
+        cursor.execute("SELECT COUNT(DISTINCT house_no) FROM voters WHERE ac_no = ? AND part_no = ?", (anchor_ac, anchor_part))
+        total_booth_households = cursor.fetchone()[0] or 1
+        cursor.execute("SELECT COUNT(*) FROM voters WHERE ac_no = ? AND part_no = ?", (anchor_ac, anchor_part))
+        total_booth_electors = cursor.fetchone()[0] or 1
+    finally:
+        conn.close()
     
-    # Accurate Google Maps Search & Directions queries using verified public landmark
+    # Accurate Google Maps Search, Embed & Directions queries using verified public landmark + locality + district
     search_parts = [booth_info["building_name"]]
     if booth_info["locality"] and booth_info["locality"].lower() not in booth_info["building_name"].lower():
         search_parts.append(booth_info["locality"])
-    if ac_name and ac_name.lower() not in booth_info["locality"].lower():
+    if ac_name and ac_name.lower() not in " ".join(search_parts).lower():
         search_parts.append(ac_name)
-    search_parts.append("Manipur")
+    if district_name and district_name.lower() not in " ".join(search_parts).lower():
+        search_parts.append(district_name)
+    search_parts.append("Manipur, India")
     
-    encoded_search = urllib.parse.quote_plus(", ".join([p for p in search_parts if p]))
+    full_search_query = ", ".join([p for p in search_parts if p])
+    encoded_search = urllib.parse.quote_plus(full_search_query)
     google_maps_url = f"https://www.google.com/maps/search/?api=1&query={encoded_search}"
+    google_maps_embed_url = f"https://maps.google.com/maps?q={encoded_search}&z=16&output=embed"
     google_maps_directions_url = f"https://www.google.com/maps/dir/?api=1&destination={encoded_search}"
     b_label = urllib.parse.quote_plus(booth_info.get("building_name") or ps_name or "Polling Station")
-    google_maps_coord_url = f"https://www.google.com/maps?q=loc:{b_lat},{b_lng}+({b_label})"
+    # Only use raw lat/lng URL when backed by exact building coordinates; otherwise use Google Maps POI search
+    google_maps_coord_url = (
+        f"https://www.google.com/maps?q=loc:{b_lat},{b_lng}+({b_label})"
+        if geo_source == "EXACT_BUILDING"
+        else google_maps_url
+    )
     
     family_members = []
     t_entry = dict(target)
@@ -2318,14 +2380,6 @@ def get_voter_household_map(voter_id: int):
                 
     head_id = head.get("id")
     family_members.sort(key=lambda m: (0 if m.get("id") == head_id else 1, -(int(m.get("age") or 0))))
-    
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(DISTINCT house_no) FROM voters WHERE ac_no = ? AND part_no = ?", (anchor_ac, anchor_part))
-    total_booth_households = cursor.fetchone()[0] or 1
-    cursor.execute("SELECT COUNT(*) FROM voters WHERE ac_no = ? AND part_no = ?", (anchor_ac, anchor_part))
-    total_booth_electors = cursor.fetchone()[0] or 1
-    conn.close()
 
     return {
         "success": True,
@@ -2353,7 +2407,8 @@ def get_voter_household_map(voter_id: int):
             "latitude": b_lat,
             "longitude": b_lng,
             "google_maps_url": google_maps_url,
-            "confidence": "VERIFIED_ECI_POLLING_STATION",
+            "google_maps_embed_url": google_maps_embed_url,
+            "confidence": geo_source,
             "total_booth_households": total_booth_households
         },
         "head_of_household": head,
@@ -2367,13 +2422,16 @@ def get_voter_household_map(voter_id: int):
             "building_name": booth_info["building_name"],
             "wing": booth_info["wing"],
             "locality": booth_info["locality"],
+            "district": district_name,
+            "search_query": full_search_query,
             "latitude": b_lat,
             "longitude": b_lng,
             "google_maps_url": google_maps_url,
+            "google_maps_embed_url": google_maps_embed_url,
             "google_maps_directions_url": google_maps_directions_url,
             "google_maps_coord_url": google_maps_coord_url,
             "total_electors": total_booth_electors,
-            "confidence": "VERIFIED_ECI_POLLING_STATION"
+            "confidence": geo_source
         }
     }
 
@@ -2419,6 +2477,8 @@ async def upload_pdf(file: UploadFile = File(...)):
         conn.commit()
         conn.close()
         update_constituency_stats()
+        global _cached_stats
+        _cached_stats = None
 
         return {
             "success": True,
@@ -2650,6 +2710,8 @@ async def submit_downloader_captcha(data: dict = Body(...)):
         conn.commit()
         conn.close()
         update_constituency_stats()
+        global _cached_stats
+        _cached_stats = None
 
         return {
             "success": True,

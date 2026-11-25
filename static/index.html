@@ -1475,12 +1475,28 @@
         </div>
       </div>
 
-      <!-- Leaflet Map Container IMMEDIATELY UNDER TOP BAR (CLEAN, NO REDUNDANT BANNERS) -->
-      <div class="relative rounded-xl overflow-hidden border border-slate-300 dark:border-zinc-700 shadow-inner">
-        <div id="leafletMap" class="w-full h-[280px] sm:h-[420px] md:h-[500px]" style="height: 420px;"></div>
-        <div class="absolute bottom-2 left-2 z-[400] bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md px-2.5 py-1 rounded-md text-[10px] font-mono text-slate-700 dark:text-zinc-300 shadow border border-slate-200 dark:border-zinc-700 flex items-center gap-1.5">
-          <i data-lucide="map-pin" class="w-3 h-3 text-blue-600 dark:text-blue-400"></i>
-          <span id="map-coords-pill">Lat: -- • Lng: --</span>
+      <!-- Map View Mode Switcher + Interactive Map Container -->
+      <div class="flex items-center justify-between gap-2 text-xs">
+        <div class="inline-flex bg-slate-100 dark:bg-zinc-800 p-0.5 rounded-lg border border-slate-200 dark:border-zinc-700">
+          <button id="btn-map-gmaps" onclick="switchMapEngine('google')" class="px-2.5 py-1 rounded-md font-bold bg-white dark:bg-zinc-700 text-emerald-700 dark:text-emerald-300 shadow-xs transition cursor-pointer">
+            🗺️ Google Maps (100% Exact POI)
+          </button>
+          <button id="btn-map-leaflet" onclick="switchMapEngine('leaflet')" class="px-2.5 py-1 rounded-md font-semibold text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-white transition cursor-pointer">
+            🛰️ ISRO Bhuvan / OSM
+          </button>
+        </div>
+        <span id="map-accuracy-badge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+          Google Maps POI Match
+        </span>
+      </div>
+
+      <!-- Interactive Map Container -->
+      <div class="relative rounded-xl overflow-hidden border border-slate-300 dark:border-zinc-700 shadow-inner bg-slate-100 dark:bg-zinc-950">
+        <iframe id="googleMapIframe" class="w-full h-[300px] sm:h-[420px] md:h-[480px] border-0" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="about:blank"></iframe>
+        <div id="leafletMap" class="hidden w-full h-[280px] sm:h-[420px] md:h-[500px]" style="height: 420px;"></div>
+        <div class="absolute bottom-2 left-2 z-[400] bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md px-2.5 py-1 rounded-md text-[10px] font-mono text-slate-700 dark:text-zinc-300 shadow border border-slate-200 dark:border-zinc-700 flex items-center gap-1.5 max-w-[90%] truncate">
+          <i data-lucide="map-pin" class="w-3 h-3 text-blue-600 dark:text-blue-400 shrink-0"></i>
+          <span id="map-coords-pill" class="truncate">Locating polling station...</span>
         </div>
       </div>
 
@@ -3109,29 +3125,23 @@
 
     function openDirectGoogleMaps(event) {
       if (event) event.preventDefault();
-      const geo = (currentInspectedMember && (currentInspectedMember.polling_station_geo || currentInspectedMember.household_geo)) || 
-                  (currentHouseholdData && (currentHouseholdData.polling_station_geo || currentHouseholdData.household_geo));
-      if (geo && geo.google_maps_coord_url) {
-        window.open(geo.google_maps_coord_url, '_blank', 'noopener,noreferrer');
-      } else if (geo && geo.latitude && geo.longitude) {
-        const url = `https://www.google.com/maps?q=${geo.latitude},${geo.longitude}`;
-        window.open(url, '_blank', 'noopener,noreferrer');
-      } else if (geo && geo.google_maps_url) {
-        window.open(geo.google_maps_url, '_blank', 'noopener,noreferrer');
-      } else {
-        const t = currentHouseholdData ? currentHouseholdData.target : null;
-        if (t && t.id) {
-          fetch(`/api/voter/${t.id}/household_map`)
-            .then(r => r.json())
-            .then(d => {
-              const url = d.polling_station?.google_maps_coord_url || (d.polling_station?.latitude ? `https://www.google.com/maps?q=${d.polling_station.latitude},${d.polling_station.longitude}` : 'https://www.google.com/maps');
-              window.open(url, '_blank', 'noopener,noreferrer');
-            }).catch(() => {
+      const targetVoter = currentInspectedMember || (currentHouseholdData ? currentHouseholdData.target : null);
+      if (targetVoter && targetVoter.id) {
+        fetch(`/api/voter/${targetVoter.id}/household_map`)
+          .then(r => r.json())
+          .then(d => {
+            const ps = d.polling_station || {};
+            const url = (ps.confidence === 'EXACT_BUILDING' ? ps.google_maps_coord_url : ps.google_maps_url) || ps.google_maps_url || 'https://www.google.com/maps';
+            window.open(url, '_blank', 'noopener,noreferrer');
+          }).catch(() => {
+            if (targetVoter.polling_station_name) {
+              window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(targetVoter.polling_station_name + ', ' + (targetVoter.ac_name || '') + ', Manipur, India')}`, '_blank', 'noopener,noreferrer');
+            } else {
               window.open('https://www.google.com/maps', '_blank', 'noopener,noreferrer');
-            });
-        } else {
-          window.open('https://www.google.com/maps', '_blank', 'noopener,noreferrer');
-        }
+            }
+          });
+      } else {
+        window.open('https://www.google.com/maps', '_blank', 'noopener,noreferrer');
       }
     }
 
@@ -3143,16 +3153,18 @@
       const lng = ps?.longitude || h?.longitude;
       const bLabel = encodeURIComponent(ps?.building_name || ps?.name || h?.polling_station_name || 'Designated Polling Station');
 
-      if (ps && ps.google_maps_coord_url) {
+      if (ps && ps.confidence === 'EXACT_BUILDING' && ps.google_maps_coord_url) {
         window.open(ps.google_maps_coord_url, '_blank', 'noopener,noreferrer');
-      } else if (lat && lng) {
-        window.open(`https://www.google.com/maps?q=loc:${lat},${lng}+(${bLabel})`, '_blank', 'noopener,noreferrer');
       } else if (ps && ps.google_maps_url) {
         window.open(ps.google_maps_url, '_blank', 'noopener,noreferrer');
+      } else if (ps && ps.google_maps_coord_url) {
+        window.open(ps.google_maps_coord_url, '_blank', 'noopener,noreferrer');
+      } else if (lat && lng && ps?.confidence === 'EXACT_BUILDING') {
+        window.open(`https://www.google.com/maps?q=loc:${lat},${lng}+(${bLabel})`, '_blank', 'noopener,noreferrer');
       } else {
         const v = state.currentResults ? state.currentResults.find(x => x.id === currentMapVoterId) : null;
         if (v && v.polling_station_name) {
-          window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(v.polling_station_name + ', Manipur')}`, '_blank', 'noopener,noreferrer');
+          window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(v.polling_station_name + ', Manipur, India')}`, '_blank', 'noopener,noreferrer');
         } else {
           window.open('https://www.google.com/maps', '_blank', 'noopener,noreferrer');
         }
@@ -3323,13 +3335,13 @@
           const key = String(m.id || (m.name ? 'anc_' + m.name : 'temp'));
 
           return `
-            <div class="p-3 rounded-xl border ${isTarget ? 'border-amber-500 ring-2 ring-amber-300 bg-amber-50/60' : 'border-slate-200 bg-white hover:border-amber-400 hover:bg-amber-50/20'} transition flex items-center justify-between shadow-sm group">
+            <div class="p-3 rounded-xl border ${isTarget ? 'border-amber-500 ring-2 ring-amber-300 dark:ring-amber-600/50 bg-amber-50/60 dark:bg-amber-950/30' : 'border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-amber-400 dark:hover:border-amber-600 hover:bg-amber-50/20 dark:hover:bg-zinc-800/80'} transition flex items-center justify-between shadow-sm group">
               <div class="space-y-0.5 min-w-0 pr-2">
                 <div class="flex items-center gap-1.5 flex-wrap">
                   <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${isTarget ? 'bg-amber-600 text-white' : badgeBg}">${role}</span>
-                  ${isHead ? '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-800 border border-yellow-300 flex items-center gap-0.5">👑 Head</span>' : ''}
-                  ${isDeceased ? '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-300">🕊️ Ancestor</span>' : ''}
-                  ${isDel ? '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-800">🚫 Deleted</span>' : ''}
+                  ${isHead ? '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-yellow-100 dark:bg-yellow-950/60 text-yellow-800 dark:text-yellow-300 border border-yellow-300 dark:border-yellow-700 flex items-center gap-0.5">👑 Head</span>' : ''}
+                  ${isDeceased ? '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 border border-slate-300 dark:border-zinc-700">🕊️ Ancestor</span>' : ''}
+                  ${isDel ? '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-800">🚫 Deleted</span>' : ''}
                 </div>
                 <h5 class="text-xs sm:text-sm font-bold ${isDel ? 'line-through text-slate-400 dark:text-zinc-500' : 'text-slate-900 dark:text-zinc-100'} break-words mt-1" title="${m.name || ''}">${m.name || 'Unnamed'}</h5>
                 <p class="text-[11px] text-slate-500 dark:text-zinc-400 flex items-center gap-1 flex-wrap">
@@ -3432,7 +3444,7 @@
               <i data-lucide="alert-circle" class="w-10 h-10 mx-auto mb-3 text-amber-500"></i>
               <h5 class="text-sm font-bold text-slate-700">Family Tree Data Unavailable</h5>
               <p class="text-xs text-slate-400 mt-1 max-w-sm mx-auto">Could not retrieve genealogical links for this elector.</p>
-              <button onclick="openFamilyModal(${voterId}, '${voterName}')" class="mt-4 px-4 py-1.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs transition shadow-sm">Retry Load</button>
+              <button onclick="openFamilyModal(${voterId}, '${escapeHtml((voterName || '').replace(/'/g, ''))}')" class="mt-4 px-4 py-1.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs transition shadow-sm">Retry Load</button>
             </div>
           `;
           lucide.createIcons();
@@ -3477,8 +3489,8 @@
           ringColor = 'border-amber-400 dark:border-amber-400 ring-4 ring-amber-300/60 dark:ring-amber-500/30 bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-300';
           badgeColor = 'bg-amber-600 text-white border-amber-600';
         } else if (isHead) {
-          ringColor = 'border-amber-400 ring-2 ring-amber-200 bg-amber-50/80 text-amber-700';
-          badgeColor = 'bg-amber-100 text-amber-900 border-amber-300';
+          ringColor = 'border-amber-400 dark:border-amber-500 ring-2 ring-amber-200 dark:ring-amber-900/50 bg-amber-50/80 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300';
+          badgeColor = 'bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-300 border-amber-300 dark:border-amber-700';
         } else if (isDeceased) {
           ringColor = 'border-slate-300 dark:border-zinc-700 border-dashed bg-slate-100 dark:bg-zinc-800 text-slate-400';
           badgeColor = 'bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-zinc-600';
@@ -3503,9 +3515,10 @@
               </div>
             </div>
             <span class="mt-1.5 text-[9px] font-bold px-2 py-0.5 rounded-full border ${badgeColor} shadow-2xs text-center truncate max-w-[130px]">${role}</span>
-            <h5 class="${nameFontSize} font-bold ${isDel ? 'line-through text-slate-400' : 'text-slate-900 dark:text-white'} mt-1 break-words line-clamp-2 min-h-[28px] flex items-center justify-center text-center px-0.5" title="${m.name || ''}">${displayName}</h5>
+            <h5 class="${nameFontSize} font-bold ${isDel ? 'line-through text-slate-400 dark:text-zinc-500' : 'text-slate-900 dark:text-white'} mt-1 break-words line-clamp-2 min-h-[28px] flex items-center justify-center text-center px-0.5" title="${m.name || ''}">${displayName}</h5>
             <p class="text-[10px] font-semibold text-slate-500 dark:text-slate-400">${ageLabel} • ${isFemale ? 'F' : 'M'}${m.house_no ? ` • H.${m.house_no}` : ''}</p>
             ${m.epic_no && !isDeceased ? `<p class="text-[9px] text-slate-400 dark:text-slate-500 font-mono">${m.epic_no}</p>` : ''}
+            ${isDel ? '<span class="mt-0.5 text-[8px] font-bold px-1.5 py-0.2 rounded-full bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-800">🚫 Deleted</span>' : ''}
             ${!isDeceased ? `
               <div class="mt-1 flex items-center justify-center gap-1">
                 <span class="text-[8px] font-bold px-1.5 py-0.2 rounded ${m.audit_tier === 'SILVER_SPLIT_BOOTH' ? 'bg-amber-100 text-amber-900 border border-amber-200' : 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'}" title="100% Verified Co-Resident Kinship">
@@ -3750,7 +3763,7 @@
       }
 
       // Group all descendants of parents: Siblings + Target (paired with Spouse if present)
-      html += '<div class="flex flex-col items-center"><span class="text-[10px] font-extrabold uppercase tracking-wider text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200 mb-2">Generation 3 • Target & Siblings</span>';
+      html += '<div class="flex flex-col items-center"><span class="text-[10px] font-extrabold uppercase tracking-wider text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/50 px-2 py-0.5 rounded-full border border-purple-200 dark:border-purple-800 mb-2">Generation 3 • Target & Siblings</span>';
 
       const barWidth = Math.max(140, (gen3Count - 1) * 200);
 
@@ -3784,7 +3797,7 @@
       if (unassignedGrandchildren.length > 0) {
         html += '<div class="flex flex-col items-center mt-2">';
         html += '<div class="pedigree-drop-stem"></div>';
-        html += '<span class="text-[10px] font-extrabold uppercase tracking-wider text-teal-700 bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200 mb-2">Generation 5 • Grandchildren</span>';
+        html += '<span class="text-[10px] font-extrabold uppercase tracking-wider text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/50 px-2 py-0.5 rounded-full border border-teal-200 dark:border-teal-800 mb-2">Generation 5 • Grandchildren</span>';
 
         const gcBarWidth = Math.max(140, (unassignedGrandchildren.length - 1) * 150);
         if (unassignedGrandchildren.length > 1) {
@@ -4270,15 +4283,43 @@
     let currentMapVoterId = null;
     let currentMapData = null;
     let mapTileLayerControl = null;
+    let currentMapEngine = 'google';
+
+    function switchMapEngine(engine) {
+      currentMapEngine = engine;
+      const gIframe = document.getElementById('googleMapIframe');
+      const lDiv = document.getElementById('leafletMap');
+      const btnG = document.getElementById('btn-map-gmaps');
+      const btnL = document.getElementById('btn-map-leaflet');
+
+      if (engine === 'google') {
+        if (gIframe) gIframe.classList.remove('hidden');
+        if (lDiv) lDiv.classList.add('hidden');
+        if (btnG) btnG.className = 'px-2.5 py-1 rounded-md font-bold bg-white dark:bg-zinc-700 text-emerald-700 dark:text-emerald-300 shadow-xs transition cursor-pointer';
+        if (btnL) btnL.className = 'px-2.5 py-1 rounded-md font-semibold text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-white transition cursor-pointer';
+      } else {
+        if (gIframe) gIframe.classList.add('hidden');
+        if (lDiv) lDiv.classList.remove('hidden');
+        if (btnL) btnL.className = 'px-2.5 py-1 rounded-md font-bold bg-white dark:bg-zinc-700 text-blue-700 dark:text-blue-300 shadow-xs transition cursor-pointer';
+        if (btnG) btnG.className = 'px-2.5 py-1 rounded-md font-semibold text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-white transition cursor-pointer';
+        if (leafletMapInstance) {
+          setTimeout(() => leafletMapInstance.invalidateSize(), 80);
+        }
+      }
+    }
 
     async function openHouseholdMap(voterId, voterPreload = null) {
       if (!voterId) return;
       pushModalHistory('map');
       currentMapVoterId = voterId;
+      currentMapData = null; // Clear stale previous voter map data
+      const distSpan = document.getElementById('map-gps-dist-text');
+      if (distSpan) distSpan.innerText = "📍 Check GPS Distance";
+      switchMapEngine('google');
       document.getElementById('mapModal').classList.remove('hidden');
       lucide.createIcons();
 
-      // Show Instant Verified Polling Station State
+      // Show Instant Polling Station State
       const v = voterPreload || (state.currentResults ? state.currentResults.find(x => x.id === voterId) : null);
       if (v) {
         const acBadge = document.getElementById('map-ac-badge');
@@ -4286,17 +4327,24 @@
         const titleEl = document.getElementById('map-booth-title');
         if (titleEl) titleEl.innerText = v.polling_station_name || "Official Designated Polling Station";
         const descEl = document.getElementById('map-section-desc');
-        if (descEl) descEl.innerText = `Designated Polling Station #${v.part_no || '--'} • AC #${v.ac_no || '--'} ${v.ac_name ? '(' + v.ac_name + ')' : ''} • 100% Verified Location`;
+        if (descEl) descEl.innerText = `Designated Polling Station #${v.part_no || '--'} • AC #${v.ac_no || '--'} ${v.ac_name ? '(' + v.ac_name + ')' : ''}`;
+        const gIframe = document.getElementById('googleMapIframe');
+        if (gIframe && v.polling_station_name) {
+          const instantQ = encodeURIComponent(`${v.polling_station_name}, ${v.ac_name || ''}, Manipur, India`);
+          gIframe.src = `https://maps.google.com/maps?q=${instantQ}&z=16&output=embed`;
+        }
       } else {
         const acBadge = document.getElementById('map-ac-badge');
         if (acBadge) acBadge.innerText = "Loading...";
         const titleEl = document.getElementById('map-booth-title');
         if (titleEl) titleEl.innerText = "Official Designated Polling Station";
         const descEl = document.getElementById('map-section-desc');
-        if (descEl) descEl.innerText = "Retrieving verified polling station coordinates and location...";
+        if (descEl) descEl.innerText = "Retrieving polling station location...";
+        const gIframe = document.getElementById('googleMapIframe');
+        if (gIframe) gIframe.src = 'about:blank';
       }
       const coordsPill = document.getElementById('map-coords-pill');
-      if (coordsPill) coordsPill.innerText = "Locating GPS...";
+      if (coordsPill) coordsPill.innerText = "Resolving Google Maps POI...";
       lucide.createIcons();
       if (leafletMapInstance) {
         setTimeout(() => leafletMapInstance.invalidateSize(), 50);
@@ -4318,14 +4366,30 @@
         const descEl = document.getElementById('map-section-desc');
         if (descEl) descEl.innerText = `Designated Booth #${ps.part_no || h.part_no} • Locality: ${ps.locality || h.section_name} • ECI Part: ${ps.name || h.polling_station_name}`;
 
+        const gIframe = document.getElementById('googleMapIframe');
+        if (gIframe && ps.google_maps_embed_url) {
+          gIframe.src = ps.google_maps_embed_url;
+        }
+
+        const accBadge = document.getElementById('map-accuracy-badge');
+        if (accBadge) {
+          if (ps.confidence === 'EXACT_BUILDING') {
+            accBadge.innerText = '🎯 Exact Building GPS + Google Maps';
+          } else if (ps.confidence === 'VERIFIED_LOCALITY') {
+            accBadge.innerText = '🗺️ Google Maps Building POI Search';
+          } else {
+            accBadge.innerText = '🗺️ Google Maps POI Match';
+          }
+        }
+
         const latVal = ps.latitude || h.latitude;
         const lngVal = ps.longitude || h.longitude;
-        const coordsStr = `${latVal.toFixed(5)}° N, ${lngVal.toFixed(5)}° E`;
+        const coordsStr = ps.search_query || `${latVal.toFixed(5)}° N, ${lngVal.toFixed(5)}° E`;
         const coordsPillUpdated = document.getElementById('map-coords-pill');
         if (coordsPillUpdated) coordsPillUpdated.innerText = coordsStr;
 
-        // Google Maps Links
-        const gmapsLink = ps.google_maps_coord_url || ps.google_maps_url || h.google_maps_url || `https://www.google.com/maps/search/?api=1&query=${latVal},${lngVal}`;
+        // Google Maps Links (Prefer Google Maps Building POI search unless exact building GPS is verified)
+        const gmapsLink = (ps.confidence === 'EXACT_BUILDING' ? ps.google_maps_coord_url : ps.google_maps_url) || ps.google_maps_url || h.google_maps_url || `https://www.google.com/maps/search/?api=1&query=${latVal},${lngVal}`;
         const gmapsLinkEl = document.getElementById('map-gmaps-link');
         if (gmapsLinkEl) gmapsLinkEl.href = gmapsLink;
         const dirLink = document.getElementById('map-directions-link');
